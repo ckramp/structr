@@ -21,6 +21,7 @@ package org.structr.bolt.index;
 import java.util.Iterator;
 import org.structr.api.QueryResult;
 import org.structr.api.graph.Relationship;
+import org.structr.api.search.QueryContext;
 import org.structr.api.util.Iterables;
 import org.structr.bolt.BoltDatabaseService;
 import org.structr.bolt.SessionTransaction;
@@ -36,22 +37,17 @@ public class CypherRelationshipIndex extends AbstractCypherIndex<Relationship> {
 	}
 
 	@Override
-	public String getQueryPrefix(final String typeLabel) {
+	public String getQueryPrefix(final QueryContext context,final String typeLabel) {
 
 		if (typeLabel != null) {
 
-			return "MATCH ()-[n: " + typeLabel + "]-()";
+			return getSecurityPrefix(context)+"MATCH ()-[n: " + typeLabel + "]-()";
 
 		} else {
 
-			return "MATCH ()-[n]-()";
+			return getSecurityPrefix(context)+"MATCH ()-[n]-()";
 
 		}
-	}
-
-	@Override
-	public String getQuerySuffix() {
-		return " RETURN DISTINCT n";
 	}
 
 	@Override

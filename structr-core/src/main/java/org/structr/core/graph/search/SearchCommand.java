@@ -32,6 +32,7 @@ import org.structr.api.index.Index;
 import org.structr.api.search.Occurrence;
 import org.structr.api.Predicate;
 import org.structr.api.graph.PropertyContainer;
+import org.structr.api.search.QueryContext;
 import org.structr.common.GraphObjectComparator;
 import org.structr.common.PagingHelper;
 import org.structr.common.SecurityContext;
@@ -43,6 +44,7 @@ import org.structr.core.Result;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.AbstractRelationship;
+import org.structr.core.entity.Principal;
 import org.structr.core.graph.Factory;
 import org.structr.core.graph.NodeInterface;
 import org.structr.core.graph.NodeServiceCommand;
@@ -201,7 +203,24 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 			}
 
 			// do query
-			final Iterable hits = getIndex().query(rootGroup);
+                        QueryContext context = new QueryContext();
+                        Principal currentUser = securityContext.getUser(false);
+
+
+                        if(currentUser != null){
+
+                                context.booleanProperty("isAuthenticatedUser", true);
+                                context.booleanProperty("isAdmin", currentUser.isAdmin());
+                                context.stringProperty("uuid", currentUser.getUuid());
+
+
+                        } else {
+
+                                context.booleanProperty("isAnonymousUser",true);
+
+                        }
+
+			final Iterable hits = getIndex().query(context,rootGroup);
 			intermediateResult  = factory.instantiate(hits);
 		}
 

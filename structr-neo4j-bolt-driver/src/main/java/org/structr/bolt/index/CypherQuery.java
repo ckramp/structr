@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import org.structr.api.search.QueryContext;
 import org.structr.api.search.SortType;
 
 /**
@@ -33,14 +34,38 @@ public class CypherQuery {
 	private final Map<String, Object> parameters = new HashMap<>();
 	private final List<String> typeLabels        = new LinkedList<>();
 	private final StringBuilder buffer           = new StringBuilder();
+        private QueryContext context                 = null;
 	private AbstractCypherIndex<?> index         = null;
 	private boolean sortDescending               = false;
 	private SortType sortType                    = null;
 	private String sortKey                       = null;
 	private int count                            = 0;
 
-	public CypherQuery(final AbstractCypherIndex<?> index) {
+	public CypherQuery(final QueryContext context, final AbstractCypherIndex<?> index) {
 		this.index = index;
+                this.context = context;
+
+                Boolean isAuthUser = null;
+
+                if(this.context.hasProperty("isAuthenticatedUser")){
+
+                        isAuthUser = ((Boolean)this.context.getProperty("isAuthenticatedUser").getValue());
+
+                }
+
+
+                if(isAuthUser != null && isAuthUser){
+
+                    String uuid = this.context.getStringProperty("uuid");
+
+                    if(!uuid.isEmpty()){
+
+                        this.parameters.put("uuid", uuid);
+
+                    }
+
+                }
+
 	}
 
 	@Override
@@ -63,6 +88,12 @@ public class CypherQuery {
 		return hashCode;
 	}
 
+        public QueryContext getQueryContext() {
+
+                return this.context;
+
+        }
+
 	public String getStatement() {
 
 		final StringBuilder buf = new StringBuilder();
@@ -71,26 +102,26 @@ public class CypherQuery {
 		switch (typeCount) {
 			case 0:
 
-				buf.append(index.getQueryPrefix(null));
+				buf.append(index.getQueryPrefix(this.context,null));
 
 				if (buffer.length() > 0) {
 					buf.append(" WHERE ");
 					buf.append(buffer);
 				}
 
-				buf.append(index.getQuerySuffix());
+				buf.append(index.getQuerySuffix(this.context));
 				break;
 
 			case 1:
 
-				buf.append(index.getQueryPrefix(typeLabels.get(0)));
+				buf.append(index.getQueryPrefix(this.context,typeLabels.get(0)));
 
 				if (buffer.length() > 0) {
 					buf.append(" WHERE ");
 					buf.append(buffer);
 				}
 
-				buf.append(index.getQuerySuffix());
+				buf.append(index.getQuerySuffix(this.context));
 				break;
 
 			default:
@@ -98,14 +129,14 @@ public class CypherQuery {
 				// create UNION query
 				for (final Iterator<String> it = typeLabels.iterator(); it.hasNext();) {
 
-					buf.append(index.getQueryPrefix(it.next()));
+					buf.append(index.getQueryPrefix(this.context,it.next()));
 
 					if (buffer.length() > 0) {
 						buf.append(" WHERE ");
 						buf.append(buffer);
 					}
 
-					buf.append(index.getQuerySuffix());
+					buf.append(index.getQuerySuffix(this.context));
 
 					if (it.hasNext()) {
 						buf.append(" UNION ");

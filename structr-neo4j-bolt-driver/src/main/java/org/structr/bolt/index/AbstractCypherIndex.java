@@ -36,6 +36,7 @@ import org.structr.api.search.ExactQuery;
 import org.structr.api.search.FulltextQuery;
 import org.structr.api.search.GroupQuery;
 import org.structr.api.search.NotEmptyQuery;
+import org.structr.api.search.QueryContext;
 import org.structr.api.search.QueryPredicate;
 import org.structr.api.search.RangeQuery;
 import org.structr.api.search.SpatialQuery;
@@ -98,8 +99,117 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 	}
 
 	public abstract QueryResult<T> getResult(final CypherQuery query);
-	public abstract String getQueryPrefix(final String typeLabel);
-	public abstract String getQuerySuffix();
+	public abstract String getQueryPrefix(final QueryContext context,final String typeLabel);
+
+	public String getQuerySuffix(final QueryContext context){
+
+                Boolean isAnonymousUser,isAdmin;
+                StringBuilder buf                           = new StringBuilder();
+                isAnonymousUser                             = null;
+                isAdmin                                     = null;
+
+                if(context.hasProperty("isAuthenticatedUser")){
+
+                        isAnonymousUser = !context.getBooleanProperty("isAuthenticatedUser");
+
+                        if(context.hasProperty("isAdmin")){
+
+                                isAdmin = context.getBooleanProperty("isAdmin");
+
+                        }
+
+                }
+
+                if(isAdmin != null && isAdmin) {
+
+                        return " RETURN DISTINCT n";
+
+                } else {
+
+                        buf.append(" ")
+                        .append("WITH n, COLLECT(n) AS foundNodes, totalResult as accessibleNodes")
+                        .append("\n")
+                        .append("WHERE ALL (x IN foundNodes WHERE x IN accessibleNodes)")
+                        .append("\n")
+                        .append("RETURN DISTINCT n");
+
+                }
+
+		return buf.toString();
+
+        }
+
+        protected String getSecurityPrefix(QueryContext context){
+
+                Boolean isAnonymousUser,isAdmin;
+                StringBuilder buf                           = new StringBuilder();
+                isAnonymousUser                             = null;
+                isAdmin                                     = null;
+
+                if(context.hasProperty("isAuthenticatedUser")){
+
+                        isAnonymousUser = !context.getBooleanProperty("isAuthenticatedUser");
+
+                        if(context.hasProperty("isAdmin")){
+
+                                isAdmin = context.getBooleanProperty("isAdmin");
+
+                        }
+
+                }
+
+                if(isAnonymousUser != null && !isAnonymousUser){
+
+                        buf.append("OPTIONAL MATCH (node:AbstractNode)")
+                        .append("\n")
+                        .append("WHERE node.`visibleToAuthenticatedUsers` = true")
+                        .append("\n")
+                        .append("WITH collect(node) AS result_VisibleToAuthenticatedUsers")
+                        .append("\n")
+                        .append("OPTIONAL MATCH (node:AbstractNode)")
+                        .append("\n")
+                        .append("WHERE node.id = { uuid }")
+                        .append("\n")
+                        .append("WITH result_VisibleToAuthenticatedUsers+collect(node) AS result_Self")
+                        .append("\n")
+                        .append("OPTIONAL MATCH (user:Principal)-[:OWNS]->(node:AbstractNode)")
+                        .append("\n")
+                        .append("WHERE user.id = { uuid }")
+                        .append("\n")
+                        .append("WITH result_Self+collect(node) AS result_Ownership")
+                        .append("\n")
+                        .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node:AbstractNode)")
+                        .append("\n")
+                        .append("WHERE user.id = { uuid }")
+                        .append("\n")
+                        .append("WITH result_Ownership+collect(node) AS result_DirectPermissionGrant")
+                        .append("\n")
+                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node:AbstractNode)")
+                        .append("\n")
+                        .append("WHERE user.id = { uuid }")
+                        .append("\n")
+                        .append("WITH result_DirectPermissionGrant+collect(node) AS totalResult")
+                        .append("\n");
+
+                } else if(isAdmin != null && isAdmin){
+
+                        return "";
+
+                } else {
+
+                    //Deal with anonymous user
+                    buf.append("OPTIONAL MATCH (node:AbstractNode)")
+                    .append("\n")
+                    .append("WHERE node.`visibleToPublicUsers` = true")
+                    .append("\n")
+                    .append("WITH collect(node) AS totalResult")
+                    .append("\n");
+
+                }
+
+                return buf.toString();
+
+        }
 
 	@Override
 	public void add(final PropertyContainer t, final String key, final Object value, final Class typeHint) {
@@ -131,9 +241,9 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 	}
 
 	@Override
-	public Iterable<T> query(final QueryPredicate predicate) {
+	public Iterable<T> query(final QueryContext context, final QueryPredicate predicate) {
 
-		final CypherQuery query = new CypherQuery(this);
+		final CypherQuery query = new CypherQuery(context,this);
 
 		createQuery(this, predicate, query, true);
 
