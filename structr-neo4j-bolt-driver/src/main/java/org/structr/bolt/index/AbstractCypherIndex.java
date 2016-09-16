@@ -145,6 +145,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                 StringBuilder buf                           = new StringBuilder();
                 isAnonymousUser                             = null;
                 isAdmin                                     = null;
+                String nodeType                             = context.getStringProperty("nodeType");
 
                 if(context.hasProperty("isAuthenticatedUser")){
 
@@ -160,27 +161,35 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
                 if(isAnonymousUser != null && !isAnonymousUser){
 
-                        buf.append("OPTIONAL MATCH (node:AbstractNode)")
+                        buf.append("OPTIONAL MATCH (node)")
                         .append("\n")
                         .append("WHERE node.`visibleToAuthenticatedUsers` = true")
                         .append("\n")
+                        .append("AND ANY(x in labels(node) WHERE x in [").append(nodeType).append("])")
+                        .append("\n")
                         .append("WITH collect(DISTINCT node) AS result_VisibleToAuthenticatedUsers")
                         .append("\n")
-                        .append("OPTIONAL MATCH (node:AbstractNode)")
+                        .append("OPTIONAL MATCH (node)")
                         .append("\n")
                         .append("WHERE node.id = { uuid }")
                         .append("\n")
+                        .append("AND ANY(x in labels(node) WHERE x in [").append(nodeType).append("])")
+                        .append("\n")
                         .append("WITH result_VisibleToAuthenticatedUsers+collect(DISTINCT node) AS result_Self")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)-[:OWNS]->(node:AbstractNode)")
+                        .append("OPTIONAL MATCH (user:Principal)-[:OWNS]->(node)")
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
+                        .append("AND ANY(x in labels(node) WHERE x in [").append(nodeType).append("])")
+                        .append("\n")
                         .append("WITH result_Self+collect(DISTINCT node) AS result_Ownership")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node:AbstractNode)")
+                        .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node)")
                         .append("\n")
                         .append("WHERE user.id = { uuid } AND ANY(x IN s.allowed WHERE x = 'read')")
+                        .append("\n")
+                        .append("AND ANY(x in labels(node) WHERE x in [").append(nodeType).append("])")
                         .append("\n")
                         .append("WITH result_Ownership+collect(DISTINCT node) AS result_DirectPermissionGrant")
                         .append("\n")
@@ -190,9 +199,11 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                         .append("\n")
                         .append("WITH result_DirectPermissionGrant+collect(DISTINCT group) AS result_ContainedGroupGrant")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node:AbstractNode)")
+                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node)")
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
+                        .append("\n")
+                        .append("AND ANY(x in labels(node) WHERE x in [").append(nodeType).append("])")
                         .append("\n")
                         .append("WITH result_ContainedGroupGrant+collect(DISTINCT node) AS totalResult")
                         .append("\n");
@@ -204,9 +215,11 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                 } else {
 
                     //Deal with anonymous user
-                    buf.append("OPTIONAL MATCH (node:AbstractNode)")
+                    buf.append("OPTIONAL MATCH (node)")
                     .append("\n")
                     .append("WHERE node.`visibleToPublicUsers` = true")
+                    .append("\n")
+                    .append("AND ANY(x in labels(node) WHERE x in [").append(nodeType).append("])")
                     .append("\n")
                     .append("WITH collect(DISTINCT node) AS totalResult")
                     .append("\n");
