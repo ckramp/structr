@@ -180,7 +180,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                         .append("\n")
                         .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node:AbstractNode)")
                         .append("\n")
-                        .append("WHERE user.id = { uuid }")
+                        .append("WHERE user.id = { uuid } AND ANY(x IN s.allowed WHERE x = 'read')")
                         .append("\n")
                         .append("WITH result_Ownership+collect(DISTINCT node) AS result_DirectPermissionGrant")
                         .append("\n")
