@@ -176,6 +176,23 @@ public class CypherQuery {
 			}
 		}
 
+                //Pagination
+                if(context.hasProperty("doPagination") && context.hasProperty("page") && context.hasProperty("pageSize")){
+
+                        if(context.getBooleanProperty("doPagination")){
+
+                                int page = context.getIntProperty("page");
+                                int pageSize = context.getIntProperty("pageSize");
+
+                                buf.append("\n")
+                                .append("SKIP ").append((page-1)*pageSize)
+                                .append("\n")
+                                .append("LIMIT ").append(pageSize);
+
+                        }
+                        
+                }
+
 		return buf.toString();
 	}
 

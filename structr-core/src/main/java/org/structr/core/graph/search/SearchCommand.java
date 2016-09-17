@@ -206,7 +206,7 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
                         QueryContext context = new QueryContext();
                         Principal currentUser = securityContext.getUser(false);
 
-
+                        //User related context parameters
                         if(currentUser != null){
 
                                 context.booleanProperty("isAuthenticatedUser", true);
@@ -220,7 +220,33 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 
                         }
 
-			final Iterable hits = getIndex().query(context,rootGroup);
+
+                        //Pagination parameters
+                        context.intProperty("page", page);
+                        context.intProperty("pageSize", pageSize);
+
+                        //Run non-paged query to get totalResultCount
+                        context.booleanProperty("doPagination", false);
+			Iterable hits = getIndex().query(context,rootGroup);
+
+                        //Only bother with pagination issues when neccessary
+                        /* Cypher pagination preperation
+                        if(page > 1){
+
+                               int resultCount = 0;
+                               Iterator it = hits.iterator();
+                               while(it.hasNext()){
+
+                                       resultCount++;
+                                       it.next();
+
+                               }
+
+                               context.booleanProperty("doPagination", true);
+                               hits = getIndex().query(context, rootGroup);
+                        }
+                        */
+
 			intermediateResult  = factory.instantiate(hits);
 		}
 

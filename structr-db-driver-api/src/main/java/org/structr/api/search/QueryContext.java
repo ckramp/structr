@@ -43,6 +43,18 @@ public class QueryContext {
 
     }
 
+    public int getIntProperty(String key){
+
+            return ((int)this.properties.get(key).getValue());
+
+    }
+
+    public long getLongProperty(String key){
+
+            return ((long)this.properties.get(key).getValue());
+
+    }
+
     public Boolean getBooleanProperty(String key){
 
             return ((Boolean)this.properties.get(key).getValue());
@@ -74,6 +86,21 @@ public class QueryContext {
 
     }
 
+
+    public void longProperty(String key, long value){
+
+            QueryContextProperty prop = new LongContextProperty(key, value);
+            this.properties.put(key, prop);
+
+    }
+
+    public void intProperty(String key, int value){
+
+            QueryContextProperty prop = new IntContextProperty(key, value);
+            this.properties.put(key, prop);
+
+    }
+
     public void booleanProperty(String key, Boolean value){
 
             QueryContextProperty prop = new BooleanContextProperty(key, value);
@@ -100,6 +127,82 @@ public class QueryContext {
             Object getValue();
 
             Class getType();
+
+    }
+
+    public class IntContextProperty implements QueryContextProperty{
+
+            private String key;
+            private int value;
+
+            public IntContextProperty(String key, int value) {
+
+                    this.key = key;
+                    this.value = value;
+
+            }
+
+
+
+            @Override
+            public String getKey() {
+
+                    return key;
+
+            }
+
+            @Override
+            public Object getValue() {
+
+                    return value;
+
+            }
+
+            @Override
+            public Class getType() {
+
+                    return IntContextProperty.class;
+
+            }
+
+
+
+
+    }
+
+    public class LongContextProperty implements QueryContextProperty{
+
+            private String key;
+            private long value;
+
+            public LongContextProperty(String key, long value) {
+
+                    this.key = key;
+                    this.value = value;
+
+            }
+
+
+            @Override
+            public String getKey() {
+
+                    return key;
+
+            }
+
+            @Override
+            public Object getValue() {
+
+                    return value;
+
+            }
+
+            @Override
+            public Class getType() {
+
+                    return LongContextProperty.class;
+
+            }
 
     }
 
