@@ -47,7 +47,7 @@ public class CypherQuery {
 
                 Boolean isAuthUser = null;
 
-                this.context.stringProperty("nodeType", "'AbstractNode'");
+                this.context.stringProperty("nodeType", ":AbstractNode");
 
                 if(this.context.hasProperty("isAuthenticatedUser")){
 
@@ -217,13 +217,13 @@ public class CypherQuery {
 
                         String nodeType = this.context.getStringProperty("nodeType");
 
-                        if(nodeType.equals("'AbstractNode'")){
+                        if(nodeType.equals(":AbstractNode")){
 
-                                this.context.stringProperty("nodeType", "'"+typeLabel+"'");
+                                this.context.stringProperty("nodeType", ":"+typeLabel);
 
                         } else {
 
-                                this.context.stringProperty("nodeType", nodeType+",'"+typeLabel+"'");
+                                this.context.stringProperty("nodeType", nodeType+":"+typeLabel);
 
                         }
 
