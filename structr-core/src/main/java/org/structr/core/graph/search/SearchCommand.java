@@ -239,6 +239,31 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
                                final Iterable pagedHits = getIndex().query(context, rootGroup);
                                intermediateResult = factory.instantiate(pagedHits, resultCount);
 
+                        //Handle pagination with negative page
+                        } else if(page < 0 && resultCount > 0){
+
+                               int maxPage = resultCount/pageSize;
+                               int negativePageOffset = Math.abs(page);
+                               int newPage;
+
+                               if(negativePageOffset > maxPage){
+
+                                    newPage = 1;
+
+                               } else {
+
+                                    newPage = maxPage - negativePageOffset + 1;
+
+                               }
+
+                               this.page = newPage;
+
+                               context.intProperty("page", page);
+
+                               context.booleanProperty("doPagination", true);
+                               final Iterable pagedHits = getIndex().query(context, rootGroup);
+                               intermediateResult = factory.instantiate(pagedHits, resultCount);
+
                         } else {
 
                                 intermediateResult  = factory.instantiate(list, resultCount);
