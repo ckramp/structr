@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.structr.web;
+package org.structr.web.importer;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
@@ -133,7 +133,11 @@ public class Importer {
 	private final SecurityContext securityContext;
 	private final boolean publicVisible;
 	private final boolean authVisible;
+	private CommentHandler commentHandler;
+	private boolean processComment = false;
+	private boolean isImport       = false;
 	private Document parsedDocument;
+	private String lastComment;
 	private final String name;
 	private URL originalUrl;
 	private String address;
@@ -168,13 +172,15 @@ public class Importer {
 		try {
 			originalUrl = new URL(this.address);
 			
-		} catch (MalformedURLException ex) {
-			logger.log(Level.SEVERE, null, ex);
-		}
+		} catch (MalformedURLException ex) {}
 	}
 
 	private void init() {
 		app = StructrApp.getInstance(securityContext);
+	}
+
+	public void setCommentHandler(final CommentHandler handler) {
+		this.commentHandler = handler;
 	}
 
 	/**
@@ -226,25 +232,26 @@ public class Importer {
 	}
 
 	public Page readPage() throws FrameworkException {
+		return readPage(null);
+	}
 
-		Page page = Page.createNewPage(securityContext, name);
+	public Page readPage(final String uuid) throws FrameworkException {
 
+		Page page = Page.createNewPage(securityContext, uuid, name);
 		if (page != null) {
 
 			page.setProperty(AbstractNode.visibleToAuthenticatedUsers, authVisible);
 			page.setProperty(AbstractNode.visibleToPublicUsers, publicVisible);
 			createChildNodes(parsedDocument, page, page);
 			logger.log(Level.INFO, "##### Finished fetching {0} for page {1} #####", new Object[]{address, name});
-
 		}
 
 		return page;
-
 	}
 
-	public void createChildNodes(final DOMNode parent, final Page page) throws FrameworkException {
+	public DOMNode createChildNodes(final DOMNode parent, final Page page) throws FrameworkException {
 
-		createChildNodes(parsedDocument.body(), parent, page);
+		return createChildNodes(parsedDocument.body(), parent, page);
 	}
 
 	public void createChildNodes(final DOMNode parent, final Page page, final boolean removeHashAttribute) throws FrameworkException {
@@ -261,6 +268,10 @@ public class Importer {
 
 		// try to import graph gist from comments
 		GraphGistImporter.importCypher(GraphGistImporter.extractSources(new ByteArrayInputStream(commentSource.toString().getBytes())));
+	}
+
+	public void setIsImport(final boolean isImport) {
+		this.isImport = isImport;
 	}
 
 	// ----- public static methods -----
@@ -448,13 +459,15 @@ public class Importer {
 	}
 
 	// ----- private methods -----
-	private void createChildNodes(final Node startNode, final DOMNode parent, final Page page) throws FrameworkException {
-		createChildNodes(startNode, parent, page, false);
+	private DOMNode createChildNodes(final Node startNode, final DOMNode parent, final Page page) throws FrameworkException {
+		return createChildNodes(startNode, parent, page, false);
 	}
 
-	private void createChildNodes(final Node startNode, final DOMNode parent, final Page page, final boolean removeHashAttribute) throws FrameworkException {
+	private DOMNode createChildNodes(final Node startNode, final DOMNode parent, final Page page, final boolean removeHashAttribute) throws FrameworkException {
 
-		Linkable res = null;
+		DOMNode rootElement = null;
+		Linkable res        = null;
+
 		final List<Node> children = startNode.childNodes();
 		for (Node node : children) {
 
@@ -511,8 +524,10 @@ public class Importer {
 			// Data and comment nodes: Trim the text and put it into the "content" field without changes
 			if (/*type.equals("#data") || */type.equals("#comment")) {
 
-				tag = "";
-				comment = ((Comment) node).getData();
+				comment        = ((Comment) node).getData();
+				processComment = false; // do not process the comment until next node
+				lastComment    = comment;
+				tag            = "";
 
 				// Don't add content node for whitespace
 				if (StringUtils.isBlank(comment)) {
@@ -538,9 +553,7 @@ public class Importer {
 			{
 				if (type.equals("#text")) {
 
-//                              type    = "Content";
 					tag = "";
-					//content = ((TextNode) node).getWholeText();
 					content = ((TextNode) node).text();
 
 					// Add content node for whitespace within <p> elements only
@@ -551,7 +564,7 @@ public class Importer {
 				}
 			}
 
-			org.structr.web.entity.dom.DOMNode newNode;
+			org.structr.web.entity.dom.DOMNode newNode = null;
 
 			// create node
 			if (StringUtils.isBlank(tag)) {
@@ -567,12 +580,40 @@ public class Importer {
 					newNode = (Content) page.createTextNode(content);
 				}
 
+			} else if ("template".equals(tag)) {
+
+				final String src = node.attr("src");
+				if (src != null) {
+
+					final DOMNode component = Importer.findSharedComponentByName(src);
+					if (component != null) {
+
+						newNode = (DOMNode) component.cloneNode(false);
+						newNode.setProperty(DOMNode.sharedComponent, component);
+						newNode.setProperty(DOMNode.ownerDocument, page);
+
+					} else {
+
+						logger.log(Level.WARNING, "Unable to find shared component {0}, template ignored!", src);
+					}
+
+				} else {
+
+					logger.log(Level.WARNING, "Invalid template definition, missing src attribute!");
+				}
+
+
 			} else {
 
 				newNode = (org.structr.web.entity.dom.DOMElement) page.createElement(tag);
 			}
 
 			if (newNode != null) {
+
+				// save root element for later use
+				if (rootElement == null) {
+					rootElement = newNode;
+				}
 
 				newNode.setProperty(AbstractNode.visibleToPublicUsers, publicVisible);
 				newNode.setProperty(AbstractNode.visibleToAuthenticatedUsers, authVisible);
@@ -648,11 +689,11 @@ public class Importer {
 							boolean isActive = notBlank && value.contains("${");
 							boolean isStructrLib = notBlank && value.startsWith("/structr/js/");
 
-							if ("link".equals(tag) && "href".equals(key) && isLocal && !isActive) {
+							if ("link".equals(tag) && "href".equals(key) && isLocal && !isActive && !isImport) {
 
 								newNode.setProperty(new StringProperty(PropertyView.Html.concat(key)), "${link.path}?${link.version}");
 
-							} else if (("href".equals(key) || "src".equals(key)) && isLocal && !isActive && !isAnchor && !isStructrLib) {
+							} else if (("href".equals(key) || "src".equals(key)) && isLocal && !isActive && !isAnchor && !isStructrLib && !isImport) {
 
 								newNode.setProperty(new StringProperty(PropertyView.Html.concat(key)), "${link.path}");
 
@@ -692,7 +733,26 @@ public class Importer {
 					}
 				}
 
-				parent.appendChild(newNode);
+				// allow parent to be null to prevent direct child relationship
+				if (parent != null) {
+					
+					parent.appendChild(newNode);
+				}
+
+				// let comment handler process newly created node
+				// (allow special comments to modify node)
+				if (processComment && commentHandler != null && StringUtils.isNotBlank(lastComment)) {
+
+					commentHandler.handleComment(page, newNode, lastComment);
+
+					// clear comment field
+					lastComment = null;
+				}
+
+				// We enable processing of special Structr comments for the next loop
+				// here, to prevent the actual #comment node from receiving modifications
+				// that are meant for the following node.
+				processComment = true;
 
 				// Link new node to its parent node
 				// linkNodes(parent, newNode, page, localIndex);
@@ -701,6 +761,8 @@ public class Importer {
 
 			}
 		}
+
+		return rootElement;
 	}
 
 	/**
@@ -810,20 +872,20 @@ public class Importer {
 		final String path;
 		final String httpPrefix  = "http://";
 		final String httpsPrefix = "https://";
-		
+
 		if (downloadAddress.startsWith(httpsPrefix)) {
 
 			path = StringUtils.substringBefore((StringUtils.substringAfter(downloadAddress, httpsPrefix)), fileName);
-			
+
 		} else if (downloadAddress.startsWith(httpPrefix)) {
-			
+
 			path = StringUtils.substringBefore((StringUtils.substringAfter(downloadAddress, httpPrefix)), fileName);
-			
+
 		} else {
-			
+
 			path = StringUtils.substringBefore(relativePath, fileName);
 		}
-		
+
 
 		logger.log(Level.INFO, "Relative path: {0}, final path: {1}", new Object[]{relativePath, path});
 
@@ -837,7 +899,7 @@ public class Importer {
 		try {
 
 			final String fullPath = path + fileName;
-			
+
 			FileBase fileNode = fileExists(fullPath, checksum);
 			if (fileNode == null) {
 
@@ -848,7 +910,7 @@ public class Importer {
 
 					fileNode = createFileNode(uuid, fullPath, ct, size, checksum);
 				}
-				
+
 				if (contentType.equals("text/css")) {
 
 					processCssFileNode(fileNode, downloadUrl);
@@ -875,7 +937,7 @@ public class Importer {
 	private FileBase createFileNode(final String uuid, final String path, final String contentType, final long size, final long checksum) throws FrameworkException {
 		return createFileNode(uuid, path, contentType, size, checksum, null);
 	}
-	
+
 	private FileBase createFileNode(final String uuid, final String path, final String contentType, final long size, final long checksum, final Class fileClass) throws FrameworkException {
 
 		final String name = PathHelper.getName(path);
@@ -894,13 +956,13 @@ public class Importer {
 
 		final Folder parentFolder = FileHelper.createFolderPath(securityContext, PathHelper.getFolderPath(path));
 		fileNode.setProperty(FileBase.parent, parentFolder);
-		
+
 		if (!fileNode.validatePath(securityContext, new ErrorBuffer())) {
-			
+
 			final String newName = name.concat("_").concat(FileHelper.getDateString());
-			
+
 			logger.log(Level.WARNING, "File {0} already exists, renaming to {1}", new Object[] { path, newName });
-			
+
 			fileNode.setProperty(AbstractNode.name, newName);
 		}
 
@@ -971,4 +1033,22 @@ public class Importer {
 		}
 	}
 
+	public static DOMNode findSharedComponentByName(final String name) throws FrameworkException {
+
+		for (final DOMNode n : StructrApp.getInstance().nodeQuery(DOMNode.class).andName(name).getAsList()) {
+
+			// Ignore nodes in trash
+			if (n.getProperty(DOMNode.parent) == null && n.getOwnerDocumentAsSuperUser() == null) {
+				continue;
+			}
+
+			// IGNORE everything that REFERENCES a shared component!
+			if (n.getProperty(DOMNode.sharedComponent) == null) {
+
+				return n;
+			}
+		}
+
+		return null;
+	}
 }
