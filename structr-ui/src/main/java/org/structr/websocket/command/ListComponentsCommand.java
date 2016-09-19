@@ -45,11 +45,11 @@ import org.structr.web.entity.dom.relationship.DOMChildren;
 /**
  * Websocket command to retrieve nodes which are in use on more than
  * one page.
- * 
+ *
  *
  */
 public class ListComponentsCommand extends AbstractCommand {
-	
+
 	private static final Logger logger = Logger.getLogger(ListComponentsCommand.class.getName());
 
 	static {
@@ -74,16 +74,16 @@ public class ListComponentsCommand extends AbstractCommand {
 			List<AbstractNode> resultList      = result.getResults();
 
 			if (result.isEmpty()) {
-				
-				logger.log(Level.WARNING, "No shadow document found"); 
+
+				logger.log(Level.WARNING, "No shadow document found");
 				return;
-				
+
 			}
-			
+
 			ShadowDocument doc = (ShadowDocument) result.get(0);
-			
+
 			resultList.addAll(doc.getProperty(Page.elements));
-			
+
 			// Filter list and return only top level nodes
 			for (GraphObject obj : resultList) {
 
@@ -92,7 +92,7 @@ public class ListComponentsCommand extends AbstractCommand {
 					DOMNode node = (DOMNode) obj;
 
 					if (!doc.equals(node) && !node.hasIncomingRelationships(DOMChildren.class)) {
-						
+
 						filteredResults.add(node);
 
 					}
@@ -131,14 +131,14 @@ public class ListComponentsCommand extends AbstractCommand {
 
 			// save raw result count
 			int resultCountBeforePaging = filteredResults.size();
-			
+
 			// set full result list
-			webSocketData.setResult(PagingHelper.subList(filteredResults, pageSize, page, null));
+			webSocketData.setResult(PagingHelper.subList(filteredResults, pageSize, page));
 			webSocketData.setRawResultCount(resultCountBeforePaging);
 
 			// send only over local connection
 			getWebSocket().send(webSocketData, true);
-			
+
 		} catch (FrameworkException fex) {
 
 			logger.log(Level.WARNING, "Exception occured", fex);

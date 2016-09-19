@@ -48,7 +48,7 @@ public class UuidResource extends FilterableResource {
 	//~--- methods --------------------------------------------------------
 
 	@Override
-	public Result doGet(PropertyKey sortKey, boolean sortDescending, int pageSize, int page, String offsetId) throws FrameworkException {
+	public Result doGet(PropertyKey sortKey, boolean sortDescending, int pageSize, int page) throws FrameworkException {
 
 		GraphObject obj = getEntity();
 		if (obj != null) {

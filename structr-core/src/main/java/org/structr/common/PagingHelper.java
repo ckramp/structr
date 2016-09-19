@@ -45,48 +45,18 @@ public class PagingHelper {
 	 * @param list
 	 * @param pageSize
 	 * @param page
-	 * @param offsetId
 	 * @return subList
 	 */
-	public static List<? extends GraphObject> subList(final List<? extends GraphObject> list, int pageSize, int page, String offsetId) {
+	public static List<? extends GraphObject> subList(final List<? extends GraphObject> list, int pageSize, int page) {
 
 		if (pageSize <= 0 || page == 0) {
 
 			return Collections.EMPTY_LIST;
 		}
 
-		int size        = list.size();
-		int fromIndex;
-		int toIndex;
-		if (StringUtils.isNotBlank(offsetId)) {
-
-			int offsetIndex = 0;
-			int i=0;
-			for (GraphObject obj : list) {
-				if (obj.getUuid().equals(offsetId)) {
-					offsetIndex = i;
-					break;
-				} else {
-					i++;
-					continue;
-				}
-			}
-			
-			fromIndex = page > 0
-				     ? offsetIndex
-				     : offsetIndex + (page * pageSize);
-			
-		} else {
-		
-			fromIndex   = page > 0
-				     ? (page - 1) * pageSize
-				     : size + (page * pageSize);
-			
-			
-		}
-
-		toIndex     = fromIndex + pageSize;
-		
+		int size           = list.size();
+		int fromIndex      = ((page-1) * pageSize);
+		int toIndex        = fromIndex + pageSize;
 		int finalFromIndex = Math.max(0, fromIndex);
 		int finalToIndex   =  Math.min(size, Math.max(0, toIndex));
 
@@ -97,17 +67,16 @@ public class PagingHelper {
 
 		try {
 			return list.subList(finalFromIndex, finalToIndex);
-			
+
 		} catch (Throwable t) {
-			
-			logger.log(Level.WARNING, "Invalid range for sublist in paging, pageSize {0}, page {1}, offsetId {2}: {3}", new Object[] {
+
+			logger.log(Level.WARNING, "Invalid range for sublist in paging, pageSize {0}, page {1}: {2}", new Object[] {
 				pageSize,
 				page,
-				offsetId,
 				t.getMessage()
 			});
 		}
-		
+
 		return Collections.EMPTY_LIST;
 
 	}
@@ -118,10 +87,9 @@ public class PagingHelper {
 	 * @param result
 	 * @param pageSize
 	 * @param page
-	 * @param offsetId
 	 * @return subResult
 	 */
-	public static Result subResult(final Result result, int pageSize, int page, String offsetId) {
+	public static Result subResult(final Result result, int pageSize, int page) {
 
 		if (pageSize <= 0 || page == 0) {
 
@@ -143,7 +111,7 @@ public class PagingHelper {
 		result.setPage(page);
 		result.setPageSize(pageSize);
 
-		return new Result(subList(result.getResults(), pageSize, page, offsetId), result.getResults().size(), result.isCollection(), result.isPrimitiveArray());
+		return new Result(subList(result.getResults(), pageSize, page), result.getResults().size(), result.isCollection(), result.isPrimitiveArray());
 
 	}
 

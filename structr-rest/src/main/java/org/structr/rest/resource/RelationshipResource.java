@@ -67,11 +67,11 @@ public class RelationshipResource extends WrappingResource {
 	}
 
 	@Override
-	public Result doGet(final PropertyKey sortKey, final boolean sortDescending, final int pageSize, final int page, final String offsetId) throws FrameworkException {
+	public Result doGet(final PropertyKey sortKey, final boolean sortDescending, final int pageSize, final int page) throws FrameworkException {
 
 		final App app = StructrApp.getInstance();
 
-		List<? extends GraphObject> results = wrappedResource.doGet(sortKey, sortDescending, pageSize, page, offsetId).getResults();
+		List<? extends GraphObject> results = wrappedResource.doGet(sortKey, sortDescending, pageSize, page).getResults();
 		if (results != null && !results.isEmpty()) {
 
 			try {
@@ -85,13 +85,13 @@ public class RelationshipResource extends WrappingResource {
 							//Iterables.toList(((AbstractNode) obj).getIncomingRelationships()) :
 							//Iterables.toList(((AbstractNode) obj).getOutgoingRelationships());
 							(sortDescending ?
-								app.relationshipQuery().and(AbstractRelationship.targetId, obj.getUuid()).sortDescending(sortKey).pageSize(pageSize).page(page).offsetId(offsetId).getAsList()
+								app.relationshipQuery().and(AbstractRelationship.targetId, obj.getUuid()).sortDescending(sortKey).pageSize(pageSize).page(page).getAsList()
 							:
-								app.relationshipQuery().and(AbstractRelationship.targetId, obj.getUuid()).sortAscending(sortKey).pageSize(pageSize).page(page).offsetId(offsetId).getAsList()) :
+								app.relationshipQuery().and(AbstractRelationship.targetId, obj.getUuid()).sortAscending(sortKey).pageSize(pageSize).page(page).getAsList()) :
 							(sortDescending ?
-								app.relationshipQuery().and(AbstractRelationship.sourceId, obj.getUuid()).sortDescending(sortKey).pageSize(pageSize).page(page).offsetId(offsetId).getAsList()
+								app.relationshipQuery().and(AbstractRelationship.sourceId, obj.getUuid()).sortDescending(sortKey).pageSize(pageSize).page(page).getAsList()
 							:
-								app.relationshipQuery().and(AbstractRelationship.sourceId, obj.getUuid()).sortAscending(sortKey).pageSize(pageSize).page(page).offsetId(offsetId).getAsList());
+								app.relationshipQuery().and(AbstractRelationship.sourceId, obj.getUuid()).sortAscending(sortKey).pageSize(pageSize).page(page).getAsList());
 
 						if (relationships != null) {
 

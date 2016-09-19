@@ -188,7 +188,6 @@ public class RestDataSource implements GraphDataSource<List<GraphObject>> {
 		// add sorting & paging
 		String pageSizeParameter = wrappedRequest.getParameter(JsonRestServlet.REQUEST_PARAMETER_PAGE_SIZE);
 		String pageParameter     = wrappedRequest.getParameter(JsonRestServlet.REQUEST_PARAMETER_PAGE_NUMBER);
-		String offsetId          = wrappedRequest.getParameter(JsonRestServlet.REQUEST_PARAMETER_OFFSET_ID);
 		String sortOrder         = wrappedRequest.getParameter(JsonRestServlet.REQUEST_PARAMETER_SORT_ORDER);
 		String sortKeyName       = wrappedRequest.getParameter(JsonRestServlet.REQUEST_PARAMETER_SORT_KEY);
 		boolean sortDescending   = (sortOrder != null && "desc".equals(sortOrder.toLowerCase()));
@@ -215,7 +214,7 @@ public class RestDataSource implements GraphDataSource<List<GraphObject>> {
 		Result result = Result.EMPTY_RESULT;
 
 		try {
-			result = resource.doGet(sortKey, sortDescending, pageSize, page, offsetId);
+			result = resource.doGet(sortKey, sortDescending, pageSize, page);
 
 		} catch (NotFoundException nfe) {
 			logger.log(Level.WARNING, "No result from internal REST query: {0}", restQuery);

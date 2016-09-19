@@ -83,7 +83,7 @@ public abstract class Resource {
 	public abstract String getResourceSignature();
 	public abstract boolean isCollectionResource() throws FrameworkException;
 
-	public abstract Result doGet(PropertyKey sortKey, boolean sortDescending, int pageSize, int page, String offsetId) throws FrameworkException;
+	public abstract Result doGet(PropertyKey sortKey, boolean sortDescending, int pageSize, int page) throws FrameworkException;
 	public abstract RestMethodResult doPost(final Map<String, Object> propertySet) throws FrameworkException;
 
 	@Override
@@ -106,7 +106,7 @@ public abstract class Resource {
 
 		// catch 204, DELETE must return 200 if resource is empty
 		try {
-			results = doGet(null, false, NodeFactory.DEFAULT_PAGE_SIZE, NodeFactory.DEFAULT_PAGE, null).getResults();
+			results = doGet(null, false, NodeFactory.DEFAULT_PAGE_SIZE, NodeFactory.DEFAULT_PAGE).getResults();
 		} catch (final NoResultsException nre) {
 			results = null;
 		}
@@ -144,7 +144,7 @@ public abstract class Resource {
 
 	public RestMethodResult doPut(final Map<String, Object> propertySet) throws FrameworkException {
 
-		final Result<GraphObject> result = doGet(null, false, NodeFactory.DEFAULT_PAGE_SIZE, NodeFactory.DEFAULT_PAGE, null);
+		final Result<GraphObject> result = doGet(null, false, NodeFactory.DEFAULT_PAGE_SIZE, NodeFactory.DEFAULT_PAGE);
 		final List<GraphObject> results  = result.getResults();
 
 		if (results != null && !results.isEmpty()) {

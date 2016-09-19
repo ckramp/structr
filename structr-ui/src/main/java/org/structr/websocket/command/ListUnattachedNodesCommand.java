@@ -86,7 +86,7 @@ public class ListUnattachedNodesCommand extends AbstractCommand {
 			int resultCountBeforePaging = filteredResults.size();
 
 			// set full result list
-			webSocketData.setResult(PagingHelper.subList(filteredResults, pageSize, page, null));
+			webSocketData.setResult(PagingHelper.subList(filteredResults, pageSize, page));
 			webSocketData.setRawResultCount(resultCountBeforePaging);
 
 			// send only over local connection
@@ -127,11 +127,11 @@ public class ListUnattachedNodesCommand extends AbstractCommand {
 		// do search
 		List<AbstractNode> filteredResults = new LinkedList();
 		List<? extends GraphObject> resultList = null;
-		
+
 		try (final Tx tx = app.tx()) {
-			
+
 			resultList = query.getAsList();
-			
+
 		} catch (FrameworkException fex) {
 			logger.log(Level.WARNING, "Exception occured", fex);
 		}

@@ -781,7 +781,6 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 			// add sorting & paging
 			String pageSizeParameter = request.getParameter(REQUEST_PARAMETER_PAGE_SIZE);
 			String pageParameter     = request.getParameter(REQUEST_PARAMETER_PAGE_NUMBER);
-			String offsetId          = request.getParameter(REQUEST_PARAMETER_OFFSET_ID);
 			String sortOrder         = request.getParameter(REQUEST_PARAMETER_SORT_ORDER);
 			String sortKeyName       = request.getParameter(REQUEST_PARAMETER_SORT_KEY);
 			boolean sortDescending   = (sortOrder != null && "desc".equals(sortOrder.toLowerCase()));
@@ -809,7 +808,7 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 			while (retry) {
 
 				try (final Tx tx = app.tx()) {
-					result = resource.doGet(sortKey, sortDescending, pageSize, page, offsetId);
+					result = resource.doGet(sortKey, sortDescending, pageSize, page);
 					tx.success();
 					retry = false;
 

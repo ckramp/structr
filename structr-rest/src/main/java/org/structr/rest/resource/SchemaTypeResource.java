@@ -70,7 +70,7 @@ public class SchemaTypeResource extends Resource {
 	}
 
 	@Override
-	public Result doGet(PropertyKey sortKey, boolean sortDescending, int pageSize, int page, String offsetId) throws FrameworkException {
+	public Result doGet(PropertyKey sortKey, boolean sortDescending, int pageSize, int page) throws FrameworkException {
 		Class type = typeResource.getEntityClass();
 		return getSchemaTypeResult(securityContext, type, propertyView);
 
@@ -139,14 +139,14 @@ public class SchemaTypeResource extends Resource {
 
 		return propertyConverterMap;
 	}
-	
+
 	// ----- public static methods -----
 	public static Result getSchemaTypeResult(final SecurityContext securityContext, final Class type, final String propertyView) throws FrameworkException {
-	
+
 		List<GraphObjectMap> resultList = new LinkedList<>();
 
 		// create & add schema information
-		
+
 		if (type != null) {
 
 			if (propertyView != null) {
@@ -196,5 +196,5 @@ public class SchemaTypeResource extends Resource {
 
 		return new Result(resultList, resultList.size(), false, false);
 	}
-	
+
 }
