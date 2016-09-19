@@ -47,7 +47,7 @@ public class CypherQuery {
 
                 Boolean isAuthUser = null;
 
-                this.context.stringProperty("nodeType", "'AbstractNode'");
+                this.context.stringProperty("nodeType", ":AbstractNode");
 
                 if(this.context.hasProperty("isAuthenticatedUser")){
 
@@ -176,6 +176,23 @@ public class CypherQuery {
 			}
 		}
 
+                //Pagination
+                if(context.hasProperty("doPagination") && context.hasProperty("page") && context.hasProperty("pageSize")){
+
+                        if(context.getBooleanProperty("doPagination")){
+
+                                int page = context.getIntProperty("page");
+                                int pageSize = context.getIntProperty("pageSize");
+
+                                buf.append("\n")
+                                .append("SKIP ").append((page-1)*pageSize)
+                                .append("\n")
+                                .append("LIMIT ").append(pageSize);
+
+                        }
+                        
+                }
+
 		return buf.toString();
 	}
 
@@ -217,13 +234,13 @@ public class CypherQuery {
 
                         String nodeType = this.context.getStringProperty("nodeType");
 
-                        if(nodeType.equals("'AbstractNode'")){
+                        if(nodeType.equals(":AbstractNode")){
 
-                                this.context.stringProperty("nodeType", "'"+typeLabel+"'");
+                                this.context.stringProperty("nodeType", ":"+typeLabel);
 
                         } else {
 
-                                this.context.stringProperty("nodeType", nodeType+",'"+typeLabel+"'");
+                                this.context.stringProperty("nodeType", nodeType+":"+typeLabel);
 
                         }
 
