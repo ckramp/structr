@@ -103,20 +103,12 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
 	public String getQuerySuffix(final QueryContext context){
 
-                Boolean isAnonymousUser,isAdmin;
-                StringBuilder buf                           = new StringBuilder();
-                isAnonymousUser                             = null;
-                isAdmin                                     = null;
+                final StringBuilder buf = new StringBuilder();
+                Boolean isAdmin         = null;
 
-                if(context.hasProperty("isAuthenticatedUser")){
+                if(context.hasProperty("isAuthenticatedUser") && context.hasProperty("isAdmin")) {
 
-                        isAnonymousUser = !context.getBooleanProperty("isAuthenticatedUser");
-
-                        if(context.hasProperty("isAdmin")){
-
-                                isAdmin = context.getBooleanProperty("isAdmin");
-
-                        }
+			isAdmin = context.getBooleanProperty("isAdmin");
 
                 }
 
@@ -141,45 +133,50 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
         protected String getSecurityPrefix(QueryContext context){
 
-                Boolean isAnonymousUser,isAdmin;
-                StringBuilder buf                           = new StringBuilder();
-                isAnonymousUser                             = null;
-                isAdmin                                     = null;
-                String nodeType                             = context.getStringProperty("nodeType");
+                final StringBuilder buf = new StringBuilder();
+                final String nodeType   = context.getStringProperty("nodeType");
+                Boolean isAnonymousUser = null;
+		Boolean isAdmin         = null;
 
-                if(context.hasProperty("isAuthenticatedUser")){
+                if(context.hasProperty("isAuthenticatedUser")) {
 
                         isAnonymousUser = !context.getBooleanProperty("isAuthenticatedUser");
 
-                        if(context.hasProperty("isAdmin")){
+                        if(context.hasProperty("isAdmin")) {
 
                                 isAdmin = context.getBooleanProperty("isAdmin");
-
                         }
-
                 }
 
-                if(isAnonymousUser != null && !isAnonymousUser){
+                if(isAnonymousUser != null && !isAnonymousUser) {
 
-                        buf.append("OPTIONAL MATCH (node"+nodeType+")")
+                        buf.append("OPTIONAL MATCH (node")
+			.append(nodeType)
+			.append(")")
                         .append("\n")
                         .append("WHERE node.`visibleToAuthenticatedUsers` = true")
                         .append("\n")
                         .append("WITH collect(DISTINCT node) AS result_VisibleToAuthenticatedUsers")
                         .append("\n")
-                        .append("OPTIONAL MATCH (node"+nodeType+")")
+                        .append("OPTIONAL MATCH (node")
+			.append(nodeType)
+			.append(")")
                         .append("\n")
                         .append("WHERE node.id = { uuid }")
                         .append("\n")
                         .append("WITH result_VisibleToAuthenticatedUsers+collect(DISTINCT node) AS result_Self")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)-[:OWNS]->(node"+nodeType+")")
+                        .append("OPTIONAL MATCH (user:Principal)-[:OWNS]->(node")
+			.append(nodeType)
+			.append(")")
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
                         .append("WITH result_Self+collect(DISTINCT node) AS result_Ownership")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node"+nodeType+")")
+                        .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node")
+			.append(nodeType)
+			.append(")")
                         .append("\n")
                         .append("WHERE user.id = { uuid } AND ANY(x IN s.allowed WHERE x = 'read')")
                         .append("\n")
@@ -191,7 +188,9 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                         .append("\n")
                         .append("WITH result_DirectPermissionGrant+collect(DISTINCT group) AS result_ContainedGroupGrant")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node"+nodeType+")")
+                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node")
+			.append(nodeType)
+			.append(")")
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
@@ -204,13 +203,15 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
                 } else {
 
-                    //Deal with anonymous user
-                    buf.append("OPTIONAL MATCH (node"+nodeType+")")
-                    .append("\n")
-                    .append("WHERE node.`visibleToPublicUsers` = true")
-                    .append("\n")
-                    .append("WITH collect(DISTINCT node) AS totalResult")
-                    .append("\n");
+	                    //Deal with anonymous user
+                	buf.append("OPTIONAL MATCH (node")
+			.append(nodeType)
+			.append(")")
+                	.append("\n")
+                	.append("WHERE node.`visibleToPublicUsers` = true")
+                	.append("\n")
+                	.append("WITH collect(DISTINCT node) AS totalResult")
+                	.append("\n");
 
                 }
 
