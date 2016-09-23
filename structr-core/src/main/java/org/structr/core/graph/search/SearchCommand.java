@@ -46,6 +46,7 @@ import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.AbstractRelationship;
 import org.structr.core.entity.Principal;
+import org.structr.core.entity.SchemaNode;
 import org.structr.core.graph.Factory;
 import org.structr.core.graph.NodeInterface;
 import org.structr.core.graph.NodeServiceCommand;
@@ -219,6 +220,39 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
                                 context.booleanProperty("isAnonymousUser",true);
 
                         }
+
+                        //Get relevant relationship types for schema based security resolution
+                        String relevantRelTypes = "";
+                        Iterator it = currentUser.getRelationships().iterator();
+
+                        while(it.hasNext()){
+
+                                AbstractRelationship r = (AbstractRelationship)it.next();
+                                String relType = r.getType();
+
+                                switch(relType){
+
+                                    case "OWNS":
+
+                                            break;
+                                    case "SECURITY":
+
+                                            break;
+                                    default:
+
+                                            relevantRelTypes += relType;
+
+                                            if(it.hasNext()){
+
+                                                    relevantRelTypes += ",";
+
+                                            }
+
+                                }
+
+                        }
+
+                        context.stringProperty("schemaRelTypes", relevantRelTypes);
 
 
                         //Pagination parameters
