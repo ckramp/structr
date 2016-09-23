@@ -43,33 +43,73 @@ public class QueryContext {
 
     }
 
-    public int getIntProperty(String key){
+    public Integer getIntProperty(String key){
 
-            return ((int)this.properties.get(key).getValue());
+        if(hasProperty(key)){
+
+                return ((int)this.properties.get(key).getValue());
+
+        } else {
+
+                return null;
+
+        }
 
     }
 
-    public long getLongProperty(String key){
+    public Long getLongProperty(String key){
 
-            return ((long)this.properties.get(key).getValue());
+        if(hasProperty(key)){
+
+                return ((long)this.properties.get(key).getValue());
+
+        } else {
+
+                return null;
+
+        }
 
     }
 
     public Boolean getBooleanProperty(String key){
 
-            return ((Boolean)this.properties.get(key).getValue());
+        if(hasProperty(key)){
+
+                return ((Boolean)this.properties.get(key).getValue());
+
+        } else {
+
+                return null;
+
+        }
 
     }
 
     public String getStringProperty(String key){
 
-            return this.properties.get(key).getValue().toString();
+        if(hasProperty(key)){
+
+                return this.properties.get(key).getValue().toString();
+
+        } else {
+
+                return null;
+
+        }
 
     }
 
     public QueryContextProperty getProperty(String key){
 
+        if(hasProperty(key)){
+
             return this.properties.get(key);
+
+        } else {
+
+            return null;
+
+        }
 
     }
 
