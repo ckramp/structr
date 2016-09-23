@@ -103,20 +103,12 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
 	public String getQuerySuffix(final QueryContext context){
 
-                Boolean isAnonymousUser,isAdmin;
-                StringBuilder buf                           = new StringBuilder();
-                isAnonymousUser                             = null;
-                isAdmin                                     = null;
+                final StringBuilder buf = new StringBuilder();
+                Boolean isAdmin         = null;
 
-                if(context.hasProperty("isAuthenticatedUser")){
+                if(context.hasProperty("isAuthenticatedUser") && context.hasProperty("isAdmin")) {
 
-                        isAnonymousUser = !context.getBooleanProperty("isAuthenticatedUser");
-
-                        if(context.hasProperty("isAdmin")){
-
-                                isAdmin = context.getBooleanProperty("isAdmin");
-
-                        }
+			isAdmin = context.getBooleanProperty("isAdmin");
 
                 }
 
@@ -141,25 +133,22 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
         protected String getSecurityPrefix(QueryContext context){
 
-                Boolean isAnonymousUser,isAdmin;
                 StringBuilder buf                           = new StringBuilder();
-                isAnonymousUser                             = null;
-                isAdmin                                     = null;
                 String nodeType                             = context.getStringProperty("nodeType");
                 String[] relevantRelTypes                   = context.getStringProperty("schemaRelTypes").split(",");
+                Boolean isAnonymousUser                     = null;
+                Boolean isAdmin                             = null;
 
-                if(context.hasProperty("isAuthenticatedUser")){
+
+                if(context.hasProperty("isAuthenticatedUser")) {
 
                         isAnonymousUser = !context.getBooleanProperty("isAuthenticatedUser");
 
-                        if(context.hasProperty("isAdmin")){
+                        if(context.hasProperty("isAdmin")) {
 
                                 isAdmin = context.getBooleanProperty("isAdmin");
-
                         }
-
                 }
-
 
 
                 if(isAnonymousUser != null && !isAnonymousUser){

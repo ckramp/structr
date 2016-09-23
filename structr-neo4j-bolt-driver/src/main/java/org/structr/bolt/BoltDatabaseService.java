@@ -96,7 +96,7 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 		boolean tryAgain                               = true;
 
 		if (!"remote".equals(driverMode)) {
-			
+
 			final GraphDatabaseBuilder builder = new GraphDatabaseFactory()
 				.newEmbeddedDatabaseBuilder(new File(databasePath))
 				.setConfig( GraphDatabaseSettings.allow_store_upgrade, "true")
@@ -183,12 +183,6 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 
 		// make properties available to Cypher statement
 		map.put("properties", properties);
-
-		/*
-		System.out.println("########################################################");
-		System.out.println(labels);
-		System.out.println(properties);
-		*/
 
 		return NodeWrapper.newInstance(this, getCurrentTransaction().getNode(buf.toString(), map));
 	}
