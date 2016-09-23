@@ -96,6 +96,8 @@ import org.structr.web.entity.dom.Content;
 import org.structr.web.entity.dom.DOMElement;
 import org.structr.web.entity.dom.DOMNode;
 import org.structr.web.entity.dom.Page;
+import org.structr.web.entity.html.Body;
+import org.structr.web.entity.html.Head;
 
 //~--- classes ----------------------------------------------------------------
 /**
@@ -135,13 +137,15 @@ public class Importer {
 	private final boolean authVisible;
 	private CommentHandler commentHandler;
 	private boolean processComment = false;
-	private boolean isImport       = false;
+	private boolean isDeployment       = false;
 	private Document parsedDocument;
 	private String lastComment;
 	private final String name;
 	private URL originalUrl;
 	private String address;
 	private String code;
+
+	private Map<String, Linkable> alreadyDownloaded = new HashMap<>();
 
 	/**
 	 * Construct an instance of the importer to either read the given code, or download code from the given address.
@@ -168,10 +172,10 @@ public class Importer {
 		if (address != null && !address.endsWith("/") && !address.endsWith(".html")) {
 			this.address = this.address.concat("/");
 		}
-		
+
 		try {
 			originalUrl = new URL(this.address);
-			
+
 		} catch (MalformedURLException ex) {}
 	}
 
@@ -206,7 +210,9 @@ public class Importer {
 
 		if (StringUtils.isNotBlank(code)) {
 
-			logger.log(Level.INFO, "##### Start parsing code for page {0} #####", new Object[]{name});
+			if (!isDeployment) {
+				logger.log(Level.INFO, "##### Start parsing code for page {0} #####", new Object[]{name});
+			}
 
 			if (fragment) {
 
@@ -220,7 +226,9 @@ public class Importer {
 
 		} else {
 
-			logger.log(Level.INFO, "##### Start fetching {0} for page {1} #####", new Object[]{address, name});
+			if (!isDeployment) {
+				logger.log(Level.INFO, "##### Start fetching {0} for page {1} #####", new Object[]{address, name});
+			}
 
 			code = HttpHelper.get(address);
 			parsedDocument = Jsoup.parse(code);
@@ -243,10 +251,36 @@ public class Importer {
 			page.setProperty(AbstractNode.visibleToAuthenticatedUsers, authVisible);
 			page.setProperty(AbstractNode.visibleToPublicUsers, publicVisible);
 			createChildNodes(parsedDocument, page, page);
-			logger.log(Level.INFO, "##### Finished fetching {0} for page {1} #####", new Object[]{address, name});
+
+			if (!isDeployment) {
+				logger.log(Level.INFO, "##### Finished fetching {0} for page {1} #####", new Object[]{address, name});
+			}
 		}
 
 		return page;
+	}
+
+	public DOMNode createComponentChildNodes(final Page page) throws FrameworkException {
+
+		final Element head = parsedDocument.head();
+		final Element body = parsedDocument.body();
+
+		if (head != null && !head.html().isEmpty()) {
+
+			// create Head element and append nodes to it
+			final Head headElement = (Head)page.createElement("head");
+			createChildNodes(head, headElement, page);
+
+			// head is a special case
+			return headElement;
+		}
+
+		if (body != null && !body.html().isEmpty()) {
+
+			return createChildNodes(body, null, page);
+		}
+
+		return null;
 	}
 
 	public DOMNode createChildNodes(final DOMNode parent, final Page page) throws FrameworkException {
@@ -270,8 +304,8 @@ public class Importer {
 		GraphGistImporter.importCypher(GraphGistImporter.extractSources(new ByteArrayInputStream(commentSource.toString().getBytes())));
 	}
 
-	public void setIsImport(final boolean isImport) {
-		this.isImport = isImport;
+	public void setIsDeployment(final boolean isDeployment) {
+		this.isDeployment = isDeployment;
 	}
 
 	// ----- public static methods -----
@@ -501,15 +535,19 @@ public class Importer {
 
 				id = el.id();
 
-				String downloadAddressAttr = (ArrayUtils.contains(srcElements, tag)
-					? "src" : ArrayUtils.contains(hrefElements, tag)
-					? "href" : null);
+				// do not download files when called from DeployCommand!
+				if (!isDeployment) {
 
-				if (downloadAddressAttr != null && StringUtils.isNotBlank(node.attr(downloadAddressAttr))) {
+					String downloadAddressAttr = (ArrayUtils.contains(srcElements, tag)
+						? "src" : ArrayUtils.contains(hrefElements, tag)
+						? "href" : null);
 
-					String downloadAddress = node.attr(downloadAddressAttr);
-					res = downloadFile(downloadAddress, originalUrl);
+					if (downloadAddressAttr != null && StringUtils.isNotBlank(node.attr(downloadAddressAttr))) {
 
+						String downloadAddress = node.attr(downloadAddressAttr);
+						res = downloadFile(downloadAddress, originalUrl);
+
+					}
 				}
 
 				if (removeHashAttribute) {
@@ -689,11 +727,11 @@ public class Importer {
 							boolean isActive = notBlank && value.contains("${");
 							boolean isStructrLib = notBlank && value.startsWith("/structr/js/");
 
-							if ("link".equals(tag) && "href".equals(key) && isLocal && !isActive && !isImport) {
+							if ("link".equals(tag) && "href".equals(key) && isLocal && !isActive && !isDeployment) {
 
 								newNode.setProperty(new StringProperty(PropertyView.Html.concat(key)), "${link.path}?${link.version}");
 
-							} else if (("href".equals(key) || "src".equals(key)) && isLocal && !isActive && !isAnchor && !isStructrLib && !isImport) {
+							} else if (("href".equals(key) || "src".equals(key)) && isLocal && !isActive && !isAnchor && !isStructrLib && !isDeployment) {
 
 								newNode.setProperty(new StringProperty(PropertyView.Html.concat(key)), "${link.path}");
 
@@ -735,8 +773,17 @@ public class Importer {
 
 				// allow parent to be null to prevent direct child relationship
 				if (parent != null) {
-					
-					parent.appendChild(newNode);
+
+					// special handling for <head> elements
+					if (newNode instanceof Head && parent instanceof Body) {
+
+						final org.w3c.dom.Node html = parent.getParentNode();
+						html.insertBefore(newNode, parent);
+
+					} else {
+
+						parent.appendChild(newNode);
+					}
 				}
 
 				// let comment handler process newly created node
@@ -772,7 +819,12 @@ public class Importer {
 		return app.nodeQuery(FileBase.class).and(FileBase.path, path).and(File.checksum, checksum).getFirst();
 	}
 
-	private Linkable downloadFile(String downloadAddress, final URL base) {
+	private Linkable downloadFile(final String downloadAddress, final URL base) {
+
+		// Don't download the same file twice
+		if (alreadyDownloaded.containsKey(downloadAddress)) {
+			return alreadyDownloaded.get(downloadAddress);
+		}
 
 		final String uuid = UUID.randomUUID().toString().replaceAll("[\\-]+", "");
 		String contentType;
@@ -921,13 +973,13 @@ public class Importer {
 					processCssFileNode(fileNode, downloadUrl);
 				}
 
-				return fileNode;
-
 			} else {
 
 				fileOnDisk.delete();
-				return fileNode;
 			}
+
+			alreadyDownloaded.put(downloadAddress, fileNode);
+			return fileNode;
 
 		} catch (final FrameworkException | IOException ex) {
 

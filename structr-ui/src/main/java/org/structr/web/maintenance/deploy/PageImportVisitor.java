@@ -18,7 +18,6 @@
  */
 package org.structr.web.maintenance.deploy;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitResult;
@@ -35,27 +34,23 @@ import org.structr.common.error.FrameworkException;
 import org.structr.core.GraphObject;
 import org.structr.core.app.App;
 import org.structr.core.app.StructrApp;
-import org.structr.core.graph.NodeInterface;
 import static org.structr.core.graph.NodeInterface.name;
 import org.structr.core.graph.Tx;
 import org.structr.core.property.PropertyKey;
 import org.structr.core.property.PropertyMap;
-import org.structr.dynamic.File;
 import org.structr.web.common.FileHelper;
-import org.structr.web.common.ImageHelper;
-import org.structr.web.entity.FileBase;
-import org.structr.web.entity.Folder;
-import org.structr.web.entity.Image;
 import org.structr.web.entity.dom.DOMNode;
 import org.structr.web.entity.dom.Page;
 import org.structr.web.importer.Importer;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 /**
  *
  */
 public class PageImportVisitor implements FileVisitor<Path> {
 
-	private static final Logger logger       = Logger.getLogger(PageImportVisitor.class.getName());
+	private static final Logger logger        = Logger.getLogger(PageImportVisitor.class.getName());
 	private static final String DoctypeString = "<!DOCTYPE";
 
 	private Map<String, Object> pagesConfiguration = null;
@@ -95,12 +90,7 @@ public class PageImportVisitor implements FileVisitor<Path> {
 				} catch (FrameworkException fex) {
 					logger.log(Level.WARNING, "Exception while importing page {0}: {1}", new Object[] { name, fex.getMessage() });
 				}
-
-			} else {
-
-				createFile(file, fileName);
 			}
-
 		}
 
 		return FileVisitResult.CONTINUE;
@@ -199,7 +189,7 @@ public class PageImportVisitor implements FileVisitor<Path> {
 				deletePage(app, name);
 			}
 
-			final String src         = new String (Files.readAllBytes(file),Charset.forName("UTF-8"));
+			final String src         = new String(Files.readAllBytes(file),Charset.forName("UTF-8"));
 			final String contentType = get(properties, Page.contentType, "text/html");
 
 			if (StringUtils.startsWithIgnoreCase(src, DoctypeString) && "text/html".equals(contentType)) {
@@ -207,11 +197,14 @@ public class PageImportVisitor implements FileVisitor<Path> {
 				// Import document starts with <!DOCTYPE> definition, so we treat it as an HTML
 				// document and use the Structr HTML importer.
 
-				boolean visibleToPublic       = get(properties, GraphObject.visibleToPublicUsers, false);
-				boolean visibleToAuth         = get(properties, GraphObject.visibleToPublicUsers, false);
-				final Importer importer       = new Importer(securityContext, src, null, name, visibleToPublic, visibleToAuth);
-				final boolean parseOk         = importer.parse();
+				boolean visibleToPublic = get(properties, GraphObject.visibleToPublicUsers, false);
+				boolean visibleToAuth   = get(properties, GraphObject.visibleToAuthenticatedUsers, false);
+				final Importer importer = new Importer(securityContext, src, null, name, visibleToPublic, visibleToAuth);
 
+				// enable literal import of href attributes
+				importer.setIsDeployment(true);
+
+				final boolean parseOk = importer.parse();
 				if (parseOk) {
 
 					logger.log(Level.INFO, "Importing page {0} from {1}..", new Object[] { name, fileName } );
@@ -219,11 +212,11 @@ public class PageImportVisitor implements FileVisitor<Path> {
 					// set comment handler that can parse and apply special Structr comments in HTML source files
 					importer.setCommentHandler(new DeploymentCommentHandler());
 
-					// enable literal import of href attributes
-					importer.setIsImport(true);
-
 					// parse page
 					final Page newPage = importer.readPage();
+
+					// remove duplicate elements
+					fixDocumentElements(newPage);
 
 					// store properties from pages.json if present
 					if (properties != null) {
@@ -251,7 +244,7 @@ public class PageImportVisitor implements FileVisitor<Path> {
 					importer.setCommentHandler(new DeploymentCommentHandler());
 
 					// enable literal import of href attributes
-					importer.setIsImport(true);
+					importer.setIsDeployment(true);
 
 					// parse page
 					final Page newPage = app.create(Page.class, name);
@@ -268,44 +261,48 @@ public class PageImportVisitor implements FileVisitor<Path> {
 		}
 	}
 
-	private void createFile(final Path file, final String fileName) throws IOException {
+	/**
+	 * Remove duplicate Head element from import process.
+	 * @param page
+	 */
+	private void fixDocumentElements(final Page page) {
 
-		try (final Tx tx = app.tx()) {
+		final NodeList heads = page.getElementsByTagName("head");
+		if (heads.getLength() > 1) {
 
-			final Path parentPath   = basePath.relativize(file).getParent();
-			final Folder parent     = parentPath != null ? FileHelper.createFolderPath(securityContext, parentPath.toString()) : null;
-			final FileBase existing = app.nodeQuery(FileBase.class).and(FileBase.parent, parent).and(FileBase.name, fileName).getFirst();
+			final Node head1   = heads.item(0);
+			final Node head2   = heads.item(1);
+			final Node parent  = head1.getParentNode();
 
-			logger.log(Level.INFO, "Importing {0}..", fileName);
+			final boolean h1 = head1.hasChildNodes();
+			final boolean h2 = head2.hasChildNodes();
 
-			if (existing != null) {
+			if (h1 && h2) {
 
-				// remove existing file first!
-				app.delete(existing);
-			}
+				// merge
+				for (Node child = head2.getFirstChild(); child != null; child = child.getNextSibling()) {
 
-			// close input stream
-			try (final FileInputStream fis = new FileInputStream(file.toFile())) {
-
-				// create file in folder structure
-				final FileBase newFile   = FileHelper.createFile(securityContext, fis, null, File.class, fileName);
-				final String contentType = newFile.getContentType();
-
-				// modify file type according to content
-				if (StringUtils.startsWith(contentType, "image") || ImageHelper.isImageType(newFile.getProperty(name))) {
-
-					newFile.unlockSystemPropertiesOnce();
-					newFile.setProperty(NodeInterface.type, Image.class.getSimpleName());
+					head2.removeChild(child);
+					head1.appendChild(child);
 				}
 
-				// move file to folder
-				newFile.setProperty(FileBase.parent, parent);
+				parent.removeChild(head2);
+
+			} else if (h1 && !h2) {
+
+				// remove head2
+				parent.removeChild(head2);
+
+			} else if (!h1 && h2) {
+
+				// remove head1
+				parent.removeChild(head1);
+
+			} else {
+
+				// remove first, doesn't matter
+				parent.removeChild(head1);
 			}
-
-			tx.success();
-
-		} catch (FrameworkException fex) {
-			fex.printStackTrace();
 		}
 	}
 }

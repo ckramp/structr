@@ -134,6 +134,11 @@ public class ComponentImportVisitor implements FileVisitor<Path> {
 			deleteRecursively(app, child);
 		}
 
+		for (DOMNode sync : node.getProperty(DOMNode.syncedNodes)) {
+
+			deleteRecursively(app, sync);
+		}
+
 		app.delete(node);
 	}
 
@@ -180,8 +185,11 @@ public class ComponentImportVisitor implements FileVisitor<Path> {
 			boolean visibleToPublic = get(properties, GraphObject.visibleToPublicUsers, false);
 			boolean visibleToAuth   = get(properties, GraphObject.visibleToPublicUsers, false);
 			final Importer importer = new Importer(securityContext, src, null, name, visibleToPublic, visibleToAuth);
-			final boolean parseOk   = importer.parse(true);
 
+			// enable literal import of href attributes
+			importer.setIsDeployment(true);
+
+			final boolean parseOk = importer.parse(false);
 			if (parseOk) {
 
 				logger.log(Level.INFO, "Importing page {0} from {1}..", new Object[] { name, fileName } );
@@ -189,19 +197,19 @@ public class ComponentImportVisitor implements FileVisitor<Path> {
 				// set comment handler that can parse and apply special Structr comments in HTML source files
 				importer.setCommentHandler(new DeploymentCommentHandler());
 
-				// enable literal import of href attributes
-				importer.setIsImport(true);
-
 				// parse page
 				final ShadowDocument shadowDocument = CreateComponentCommand.getOrCreateHiddenDocument();
-				final DOMNode rootElement           = importer.createChildNodes(null, shadowDocument);
+				final DOMNode rootElement           = importer.createComponentChildNodes(shadowDocument);
 
-				// set name
-				rootElement.setProperty(AbstractNode.name, name);
+				if (rootElement != null) {
 
-				// store properties from pages.json if present
-				if (properties != null) {
-					rootElement.setProperties(securityContext, properties);
+					// set name
+					rootElement.setProperty(AbstractNode.name, name);
+
+					// store properties from pages.json if present
+					if (properties != null) {
+						rootElement.setProperties(securityContext, properties);
+					}
 				}
 			}
 

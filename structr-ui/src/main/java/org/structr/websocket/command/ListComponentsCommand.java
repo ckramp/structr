@@ -74,14 +74,13 @@ public class ListComponentsCommand extends AbstractCommand {
 			List<AbstractNode> resultList      = result.getResults();
 
 			if (result.isEmpty()) {
-
-				logger.log(Level.WARNING, "No shadow document found");
-				return;
-
+				
+				logger.log(Level.WARNING, "No shadow document found, creating one.");
+				resultList.add(CreateComponentCommand.getOrCreateHiddenDocument());
 			}
-
-			ShadowDocument doc = (ShadowDocument) result.get(0);
-
+			
+			ShadowDocument doc = (ShadowDocument) resultList.get(0);
+			
 			resultList.addAll(doc.getProperty(Page.elements));
 
 			// Filter list and return only top level nodes
