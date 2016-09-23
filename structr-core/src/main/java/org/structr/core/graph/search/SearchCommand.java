@@ -221,40 +221,6 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 
                         }
 
-                        //Get relevant relationship types for schema based security resolution
-                        String relevantRelTypes = "";
-                        Iterator it = currentUser.getRelationships().iterator();
-
-                        while(it.hasNext()){
-
-                                AbstractRelationship r = (AbstractRelationship)it.next();
-                                String relType = r.getType();
-
-                                switch(relType){
-
-                                    case "OWNS":
-
-                                            break;
-                                    case "SECURITY":
-
-                                            break;
-                                    default:
-
-                                            relevantRelTypes += relType;
-
-                                            if(it.hasNext()){
-
-                                                    relevantRelTypes += ",";
-
-                                            }
-
-                                }
-
-                        }
-
-                        context.stringProperty("schemaRelTypes", relevantRelTypes);
-
-
                         //Pagination parameters
                         context.intProperty("page", page);
                         context.intProperty("pageSize", pageSize);

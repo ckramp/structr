@@ -135,7 +135,6 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
                 StringBuilder buf                           = new StringBuilder();
                 String nodeType                             = context.getStringProperty("nodeType");
-                String[] relevantRelTypes                   = context.getStringProperty("schemaRelTypes").split(",");
                 Boolean isAnonymousUser                     = null;
                 Boolean isAdmin                             = null;
 
@@ -151,7 +150,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                 }
 
 
-                if(isAnonymousUser != null && !isAnonymousUser){
+                if(isAnonymousUser != null && !isAnonymousUser && isAdmin != null && !isAdmin){
 
                         //Node visible to authenticated users?
                         buf.append("OPTIONAL MATCH (node")
@@ -203,25 +202,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
-                        .append("WITH result_ContainedGroupGrant+collect(DISTINCT group) AS result_MultipleContainedGroupGrant")
-                        //Schema based resolution
-                        .append("\n")
-                        .append("OPTIONAL MATCH (user:User)-[r");
-
-                                for(int i = 0; i < relevantRelTypes.length; i++){
-
-                                        buf.append(":")
-                                        .append(relevantRelTypes[i]);
-
-                                }
-
-                        buf.append("]-(node")
-                        .append(nodeType)
-                        .append(")")
-                        .append("\n")
-                        .append("WHERE user.id = { uuid }")
-                        .append("\n")
-                        .append("WITH result_MultipleContainedGroupGrant+collect(DISTINCT node) AS totalResult")
+                        .append("WITH result_ContainedGroupGrant+collect(DISTINCT node) AS totalResult")
                         .append("\n");
 
                 } else if(isAdmin != null && isAdmin){
