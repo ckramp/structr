@@ -146,6 +146,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                 isAnonymousUser                             = null;
                 isAdmin                                     = null;
                 String nodeType                             = context.getStringProperty("nodeType");
+                String[] relevantRelTypes                   = context.getStringProperty("schemaRelTypes").split(",");
 
                 if(context.hasProperty("isAuthenticatedUser")){
 
@@ -159,43 +160,79 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
                 }
 
+
+
                 if(isAnonymousUser != null && !isAnonymousUser){
 
-                        buf.append("OPTIONAL MATCH (node"+nodeType+")")
+                        //Node visible to authenticated users?
+                        buf.append("OPTIONAL MATCH (node")
+                        .append(nodeType)
+                        .append(")")
                         .append("\n")
                         .append("WHERE node.`visibleToAuthenticatedUsers` = true")
                         .append("\n")
                         .append("WITH collect(DISTINCT node) AS result_VisibleToAuthenticatedUsers")
                         .append("\n")
-                        .append("OPTIONAL MATCH (node"+nodeType+")")
+                        //Node is query user?
+                        .append("OPTIONAL MATCH (node")
+                        .append(nodeType)
+                        .append(")")
                         .append("\n")
                         .append("WHERE node.id = { uuid }")
                         .append("\n")
                         .append("WITH result_VisibleToAuthenticatedUsers+collect(DISTINCT node) AS result_Self")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)-[:OWNS]->(node"+nodeType+")")
+                        //Query user owns node
+                        .append("OPTIONAL MATCH (user:Principal)-[:OWNS]->(node")
+                        .append(nodeType)
+                        .append(")")
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
                         .append("WITH result_Self+collect(DISTINCT node) AS result_Ownership")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node"+nodeType+")")
+                        //Query user has read permission
+                        .append("OPTIONAL MATCH (user:Principal)-[s:SECURITY]->(node")
+                        .append(nodeType)
+                        .append(")")
                         .append("\n")
                         .append("WHERE user.id = { uuid } AND ANY(x IN s.allowed WHERE x = 'read')")
                         .append("\n")
                         .append("WITH result_Ownership+collect(DISTINCT node) AS result_DirectPermissionGrant")
                         .append("\n")
+                        //Query user belongs to group that has read permission
                         .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS]-(group:Group)")
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
                         .append("WITH result_DirectPermissionGrant+collect(DISTINCT group) AS result_ContainedGroupGrant")
                         .append("\n")
-                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node"+nodeType+")")
+                        //Query user belongs to nested group that has read permissions
+                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node")
+                        .append(nodeType)
+                        .append(")")
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
-                        .append("WITH result_ContainedGroupGrant+collect(DISTINCT node) AS totalResult")
+                        .append("WITH result_ContainedGroupGrant+collect(DISTINCT group) AS result_MultipleContainedGroupGrant")
+                        //Schema based resolution
+                        .append("\n")
+                        .append("OPTIONAL MATCH (user:User)-[r");
+
+                                for(int i = 0; i < relevantRelTypes.length; i++){
+
+                                        buf.append(":")
+                                        .append(relevantRelTypes[i]);
+
+                                }
+
+                        buf.append("]-(node")
+                        .append(nodeType)
+                        .append(")")
+                        .append("\n")
+                        .append("WHERE user.id = { uuid }")
+                        .append("\n")
+                        .append("WITH result_MultipleContainedGroupGrant+collect(DISTINCT node) AS totalResult")
                         .append("\n");
 
                 } else if(isAdmin != null && isAdmin){
@@ -205,7 +242,9 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                 } else {
 
                     //Deal with anonymous user
-                    buf.append("OPTIONAL MATCH (node"+nodeType+")")
+                    buf.append("OPTIONAL MATCH (node")
+                    .append(nodeType)
+                    .append(")")
                     .append("\n")
                     .append("WHERE node.`visibleToPublicUsers` = true")
                     .append("\n")
