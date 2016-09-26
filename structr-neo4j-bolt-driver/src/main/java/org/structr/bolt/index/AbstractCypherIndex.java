@@ -195,6 +195,15 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                         .append("\n")
                         .append("WITH result_DirectPermissionGrant+collect(DISTINCT group) AS result_ContainedGroupGrant")
                         .append("\n")
+                        //Query user belongs to group that owns target
+                        .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:OWNS]->(node")
+                        .append(nodeType)
+                        .append(")")
+                        .append("\n")
+                        .append("WHERE user.id = { uuid }")
+                        .append("\n")
+                        .append("WITH result_ContainedGroupGrant+collect(DISTINCT node) AS result_ContainedGroupOwns")
+                        .append("\n")
                         //Query user belongs to nested group that has read permissions
                         .append("OPTIONAL MATCH (user:Principal)<-[:CONTAINS*]-(group:Group)-[s:SECURITY]->(node")
                         .append(nodeType)
@@ -202,7 +211,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
                         .append("\n")
                         .append("WHERE user.id = { uuid }")
                         .append("\n")
-                        .append("WITH result_ContainedGroupGrant+collect(DISTINCT node) AS totalResult")
+                        .append("WITH result_ContainedGroupOwns+collect(DISTINCT node) AS totalResult")
                         .append("\n");
 
                 } else if(isAdmin != null && isAdmin){
