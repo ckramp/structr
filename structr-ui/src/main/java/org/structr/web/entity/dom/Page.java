@@ -52,7 +52,6 @@ import org.structr.core.property.RelationProperty;
 import org.structr.core.property.StartNode;
 import org.structr.core.property.StartNodes;
 import org.structr.core.property.StringProperty;
-import org.structr.schema.SchemaHelper;
 import org.structr.schema.SchemaService;
 import org.structr.web.importer.Importer;
 import org.structr.web.common.RenderContext;
@@ -320,8 +319,10 @@ public class Page extends DOMNode implements Linkable, Document, DOMImplementati
 
 		// create new content element
 		DOMElement element;
+
 		try {
-			final Class entityClass = SchemaHelper.getEntityClassForRawType(elementType);
+
+			final Class entityClass = Class.forName("org.structr.web.entity.html." + elementType);
 			if (entityClass != null) {
 
 				element = (DOMElement) app.create(entityClass, new NodeAttribute(DOMElement.tag, tag));
@@ -330,8 +331,8 @@ public class Page extends DOMNode implements Linkable, Document, DOMImplementati
 				return element;
 			}
 
-		} catch (FrameworkException ex) {
-			logger.log(Level.SEVERE, null, ex);
+		} catch (Throwable t) {
+			logger.log(Level.SEVERE, "Unable to instantiate element of type " + elementType, t);
 		}
 
 		return null;
@@ -491,54 +492,6 @@ public class Page extends DOMNode implements Linkable, Document, DOMImplementati
 		return importNode(node, deep, true);
 	}
 
-	private Node importNode(final Node node, final boolean deep, final boolean removeParentFromSourceNode) throws DOMException {
-
-		if (node instanceof DOMNode) {
-
-			final DOMNode domNode = (DOMNode) node;
-
-			// step 1: use type-specific import impl.
-			Node importedNode = domNode.doImport(Page.this);
-
-			// step 2: do recursive import?
-			if (deep && domNode.hasChildNodes()) {
-
-				// FIXME: is it really a good idea to do the
-				// recursion inside of a transaction?
-				Node child = domNode.getFirstChild();
-
-				while (child != null) {
-
-					// do not remove parent for child nodes
-					importNode(child, deep, false);
-					child = child.getNextSibling();
-
-					logger.log(Level.INFO, "sibling is {0}", child);
-				}
-
-			}
-
-			// step 3: remove node from its current parent
-			// (Note that this step needs to be done last in
-			// (order for the child to be able to find its
-			// siblings.)
-			if (removeParentFromSourceNode) {
-
-				// only do this for the actual source node, do not remove
-				// child nodes from its parents
-				Node _parent = domNode.getParentNode();
-				if (_parent != null) {
-					_parent.removeChild(domNode);
-				}
-			}
-
-			return importedNode;
-
-		}
-
-		return null;
-	}
-
 	@Override
 	public Node adoptNode(Node node) throws DOMException {
 		return adoptNode(node, true);
@@ -599,23 +552,13 @@ public class Page extends DOMNode implements Linkable, Document, DOMImplementati
 
 	@Override
 	public DocumentType createDocumentType(String string, String string1, String string2) throws DOMException {
-
 		throw new UnsupportedOperationException("Not supported yet.");
-
 	}
 
 	@Override
 	public Document createDocument(String string, String string1, DocumentType dt) throws DOMException {
-
 		throw new UnsupportedOperationException("Not supported yet.");
-
 	}
-
-//	@Override
-//	public String toString() {
-//
-//		return getClass().getSimpleName() + " " + getName() + " [" + getUuid() + "] (" + getTextContent() + ")";
-//	}
 
 	/**
 	 * Return the content of this page depending on edit mode
@@ -636,7 +579,6 @@ public class Page extends DOMNode implements Linkable, Document, DOMImplementati
 
 	}
 
-	//~--- get methods ----------------------------------------------------
 	@Override
 	public short getNodeType() {
 
@@ -782,7 +724,6 @@ public class Page extends DOMNode implements Linkable, Document, DOMImplementati
 		return false;
 	}
 
-	//~--- set methods ----------------------------------------------------
 	@Override
 	public void setXmlStandalone(boolean bln) throws DOMException {
 	}
@@ -928,5 +869,54 @@ public class Page extends DOMNode implements Linkable, Document, DOMImplementati
 		}
 
 		return data;
+	}
+
+	// ----- private methods -----
+	private Node importNode(final Node node, final boolean deep, final boolean removeParentFromSourceNode) throws DOMException {
+
+		if (node instanceof DOMNode) {
+
+			final DOMNode domNode = (DOMNode) node;
+
+			// step 1: use type-specific import impl.
+			Node importedNode = domNode.doImport(Page.this);
+
+			// step 2: do recursive import?
+			if (deep && domNode.hasChildNodes()) {
+
+				// FIXME: is it really a good idea to do the
+				// recursion inside of a transaction?
+				Node child = domNode.getFirstChild();
+
+				while (child != null) {
+
+					// do not remove parent for child nodes
+					importNode(child, deep, false);
+					child = child.getNextSibling();
+
+					logger.log(Level.INFO, "sibling is {0}", child);
+				}
+
+			}
+
+			// step 3: remove node from its current parent
+			// (Note that this step needs to be done last in
+			// (order for the child to be able to find its
+			// siblings.)
+			if (removeParentFromSourceNode) {
+
+				// only do this for the actual source node, do not remove
+				// child nodes from its parents
+				Node _parent = domNode.getParentNode();
+				if (_parent != null) {
+					_parent.removeChild(domNode);
+				}
+			}
+
+			return importedNode;
+
+		}
+
+		return null;
 	}
 }

@@ -71,7 +71,7 @@ var _Dragndrop = {
 					if (targetId === 'root') {
 						Command.setProperty(sourceId, 'parent', null, false, function() {
 							$(ui.draggable).remove();
-							_Filesystem.refreshTree();
+							_Files.refreshTree();
 							return true;
 						});
 						return;
@@ -141,6 +141,8 @@ var _Dragndrop = {
 			forcePlaceholderSize: true,
 			distance: 5,
 			helper: function (event, helperEl) {
+				pages.append('<div id="collapse-offset"></div>');
+				$('#collapse-offset', pages).css('height', helperEl.height() - 17);
 				helperEl.css({height: '17px'});
 				var hlp = helperEl.clone();
 				hlp.find('.node').remove();
@@ -155,7 +157,6 @@ var _Dragndrop = {
 				_Logger.log(_LogType.DND, '### sortable start: sorting?', sorting, Structr.getId(el), Structr.getId(self), Structr.getId(sortParent));
 			},
 			update: function(event, ui) {
-
 				var el = $(ui.item);
 				if (!sorting)
 					return false;
@@ -177,6 +178,7 @@ var _Dragndrop = {
 				Command.insertBefore(parentId, id, refId);
 				sorting = false;
 				sortParent = undefined;
+				$('#collapse-offset', pages).remove();
 			},
 			stop: function(event, ui) {
 				sorting = false;
@@ -185,6 +187,7 @@ var _Dragndrop = {
 					e.stopImmediatePropagation();
 				});
 				$(ui.item).css({height: ''});
+				$('#collapse-offset', pages).remove();
 			}
 		};
 
@@ -207,15 +210,15 @@ var _Dragndrop = {
 
 			if (shadowPage && source.pageId === shadowPage.id) {
 				Command.cloneComponent(source.id, target.id);
-				_Logger.log(_LogType.DND, 'dropped', source.id, 'onto', target.id, 'in page', pageId);
+				_Logger.log(_LogType.DND, 'dropped', source.id, 'onto', target.id, 'in page', pageId, ', cloneComponent');
 
 			} else if (source.pageId !== target.pageId) {
 				Command.cloneNode(source.id, target.id, true);
-				_Logger.log(_LogType.DND, 'dropped', source.id, 'onto', target.id, 'in page', pageId);
+				_Logger.log(_LogType.DND, 'dropped', source.id, 'onto', target.id, 'in page', pageId, ', cloneNode');
 
 			} else {
 				Command.appendChild(source.id, target.id, pageId);
-				_Logger.log(_LogType.DND, 'dropped', source.id, 'onto', target.id, 'in page', pageId);
+				_Logger.log(_LogType.DND, 'dropped', source.id, 'onto', target.id, 'in page', pageId, ', appendChild');
 
 			}
 
@@ -440,7 +443,7 @@ var _Dragndrop = {
 							window.clearTimeout(refreshTimeout);
 						}
 						refreshTimeout = window.setTimeout(function() {
-							_Filesystem.refreshTree();
+							_Files.refreshTree();
 							refreshTimeout = 0;
 						}, 100);
 
@@ -450,7 +453,7 @@ var _Dragndrop = {
 
 			} else {
 				Command.appendFile(source.id, target.id, function() {
-					_Filesystem.refreshTree();
+					_Files.refreshTree();
 				});
 			}
 
@@ -500,7 +503,7 @@ var _Dragndrop = {
 		}
 		source.id = undefined;
 
-		Structr.modules['filesystem'].unload();
+		Structr.modules['files'].unload();
 		Command.createAndAppendDOMNode(pageId, target.id, tag, nodeData);
 
 		return true;

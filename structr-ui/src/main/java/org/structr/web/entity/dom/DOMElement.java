@@ -21,17 +21,17 @@ package org.structr.web.entity.dom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.structr.api.util.Iterables;
-import org.structr.common.CaseHelper;
 import org.structr.common.PropertyView;
 import org.structr.common.SecurityContext;
 import org.structr.common.error.ErrorBuffer;
@@ -39,10 +39,10 @@ import org.structr.common.error.FrameworkException;
 import org.structr.core.GraphObject;
 import org.structr.core.Result;
 import org.structr.core.app.StructrApp;
+import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.AbstractRelationship;
 import org.structr.core.graph.ModificationQueue;
 import org.structr.core.property.BooleanProperty;
-import org.structr.core.property.GenericProperty;
 import org.structr.core.property.Property;
 import org.structr.core.property.PropertyKey;
 import org.structr.core.property.PropertyMap;
@@ -51,6 +51,8 @@ import org.structr.web.common.AsyncBuffer;
 import org.structr.web.common.HtmlProperty;
 import org.structr.web.common.RenderContext;
 import org.structr.web.common.RenderContext.EditMode;
+import org.structr.web.entity.LinkSource;
+import org.structr.web.entity.Linkable;
 import org.structr.web.entity.dom.relationship.DOMChildren;
 import org.structr.web.entity.html.Body;
 import org.structr.web.entity.relation.PageLink;
@@ -191,13 +193,6 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 		_ontimeupdate, _onvolumechange, _onwaiting, _role
 	);
 
-	private static final Property[] rawProps = new Property[] {
-		dataKey, restQuery, cypherQuery, xpathQuery, functionQuery, hideOnIndex, hideOnDetail, showForLocales, hideForLocales, showConditions, hideConditions
-	};
-
-	// a simple cache for data-* properties
-	private Set<PropertyKey> dataProperties = null;
-
 	@Override
 	public boolean contentEquals(DOMNode otherNode) {
 
@@ -231,52 +226,76 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 
 	public void openingTag(final AsyncBuffer out, final String tag, final EditMode editMode, final RenderContext renderContext, final int depth) throws FrameworkException {
 
-		out.append("<").append(tag);
+		final DOMElement _syncedNode = (DOMElement) getProperty(sharedComponent);
+		if (_syncedNode != null && EditMode.DEPLOYMENT.equals(editMode)) {
 
-		for (PropertyKey attribute : StructrApp.getConfiguration().getPropertySet(entityType, PropertyView.Html)) {
+			final String name = _syncedNode.getProperty(AbstractNode.name);
 
-			String value = getPropertyWithVariableReplacement(renderContext, attribute);
+			out.append("<structr:template src=\"");
+			out.append(name != null ? name : _syncedNode.getUuid());
+			out.append("\"");
 
-			if (!(EditMode.RAW.equals(editMode) || EditMode.WIDGET.equals(editMode))) {
+			// include data-* attributes in template
+			renderCustomAttributes(out, securityContext, renderContext);
 
-				value = escapeForHtmlAttributes(value);
+		} else {
 
-			}
+			out.append("<").append(tag);
 
-			if (value != null) {
+			for (PropertyKey attribute : StructrApp.getConfiguration().getPropertySet(entityType, PropertyView.Html)) {
 
-				String key = attribute.jsonName().substring(PropertyView.Html.length());
+				String value = null;
 
-				out.append(" ").append(key).append("=\"").append(value).append("\"");
+				if (EditMode.DEPLOYMENT.equals(editMode)) {
 
-			}
+					value = (String)getProperty(attribute);
 
-		}
+				} else {
 
-		// include arbitrary data-* attributes
-		renderCustomAttributes(out, securityContext, renderContext);
-
-		// include special mode attributes
-		switch (editMode) {
-
-			case CONTENT:
-
-				if (depth == 0) {
-
-					String pageId = renderContext.getPageId();
-
-					if (pageId != null) {
-
-						out.append(" data-structr-page=\"").append(pageId).append("\"");
-					}
+					value = getPropertyWithVariableReplacement(renderContext, attribute);
 				}
 
-				out.append(" data-structr-id=\"").append(getUuid()).append("\"");
-				break;
+				if (!(EditMode.RAW.equals(editMode) || EditMode.WIDGET.equals(editMode))) {
 
-			case RAW:
-				out.append(" ").append(DOMElement.dataHashProperty.jsonName()).append("=\"").append(getIdHash()).append("\"");
-				break;
+					value = escapeForHtmlAttributes(value);
+				}
+
+				if (value != null) {
+
+					String key = attribute.jsonName().substring(PropertyView.Html.length());
+
+					out.append(" ").append(key).append("=\"").append(value).append("\"");
+
+				}
+
+			}
+
+			// include arbitrary data-* attributes
+			renderCustomAttributes(out, securityContext, renderContext);
+
+			// include special mode attributes
+			switch (editMode) {
+
+				case CONTENT:
+
+					if (depth == 0) {
+
+						String pageId = renderContext.getPageId();
+
+						if (pageId != null) {
+
+							out.append(" data-structr-page=\"").append(pageId).append("\"");
+						}
+					}
+
+					out.append(" data-structr-id=\"").append(getUuid()).append("\"");
+					break;
+
+				case RAW:
+
+					out.append(" ").append(DOMElement.dataHashProperty.jsonName()).append("=\"").append(getIdHash()).append("\"");
+					break;
+	 		}
 		}
 
 		out.append(">");
@@ -316,6 +335,20 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 
 		if (StringUtils.isNotBlank(_tag)) {
 
+			if (EditMode.DEPLOYMENT.equals(editMode)) {
+
+				// Determine if this element's visibility flags differ from
+				// the flags of the page and render a <!-- @structr:private -->
+				// comment accordingly.
+				if (renderDeploymentExportComments(out)) {
+
+					// restore indentation
+					if (depth > 0 && !avoidWhitespace()) {
+						out.append(indent(depth, renderContext));
+					}
+				}
+			}
+
 			openingTag(out, _tag, editMode, renderContext, depth);
 
 			try {
@@ -326,15 +359,15 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 				}
 
 				// fetch children
-				List<DOMChildren> rels = getChildRelationships();
+				final List<DOMChildren> rels = getChildRelationships();
 				if (rels.isEmpty()) {
 
 					migrateSyncRels();
 
 					// No child relationships, maybe this node is in sync with another node
-					//Sync syncRel = getIncomingRelationship(Sync.class);
-					DOMElement _syncedNode = (DOMElement) getProperty(sharedComponent);
+					final DOMElement _syncedNode = (DOMElement) getProperty(sharedComponent);
 					if (_syncedNode != null) {
+
 						rels.addAll(_syncedNode.getChildRelationships());
 					}
 				}
@@ -365,13 +398,22 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 			if (StringUtils.isNotBlank(_tag) && (!isVoid)) {
 
 				// only insert a newline + indentation before the closing tag if any child-element used a newline
-				if (anyChildNodeCreatesNewLine) {
+				final DOMElement _syncedNode = (DOMElement) getProperty(sharedComponent);
+				final boolean isTemplate     = _syncedNode != null && EditMode.DEPLOYMENT.equals(editMode);
+
+				if (anyChildNodeCreatesNewLine || isTemplate) {
 
 					out.append(indent(depth, renderContext));
-
 				}
 
-				out.append("</").append(_tag).append(">");
+				if (isTemplate) {
+
+					out.append("</structr:template>");
+
+				} else {
+
+					out.append("</").append(_tag).append(">");
+				}
 			}
 
 		}
@@ -380,7 +422,6 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 		if (localResult != null) {
 			renderContext.setResult(localResult);
 		}
-
 	}
 
 	public boolean isVoidElement() {
@@ -777,104 +818,49 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 	@Override
 	public boolean onModification(SecurityContext securityContext, ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
 
-		final PropertyMap map = new PropertyMap();
+		if (super.onModification(securityContext, errorBuffer, modificationQueue)) {
 
-		if (dataProperties != null) {
+			final PropertyMap map = new PropertyMap();
 
-			// invalidate data property cache
-			dataProperties.clear();
-		}
+			for (Sync rel : getOutgoingRelationships(Sync.class)) {
 
-
-		for (Sync rel : getOutgoingRelationships(Sync.class)) {
-
-			final DOMElement syncedNode = (DOMElement) rel.getTargetNode();
-
-			map.clear();
-
-			// sync HTML properties only
-			for (Property htmlProp : syncedNode.getHtmlAttributes()) {
-				map.put(htmlProp, getProperty(htmlProp));
-			}
-
-			map.put(name, getProperty(name));
-
-			syncedNode.setProperties(securityContext, map);
-		}
-
-                final Sync rel = getIncomingRelationship(Sync.class);
-                if (rel != null) {
-
-			final DOMElement otherNode = (DOMElement) rel.getSourceNode();
-			if (otherNode != null) {
+				final DOMElement syncedNode = (DOMElement) rel.getTargetNode();
 
 				map.clear();
 
-	                        // sync both ways
-        	                for (Property htmlProp : otherNode.getHtmlAttributes()) {
-                	                map.put(htmlProp, getProperty(htmlProp));
-                        	}
+				// sync HTML properties only
+				for (Property htmlProp : syncedNode.getHtmlAttributes()) {
+					map.put(htmlProp, getProperty(htmlProp));
+				}
 
 				map.put(name, getProperty(name));
 
-				otherNode.setProperties(securityContext, map);
-			}
-                }
-
-                try {
-
-			increasePageVersion();
-
-		} catch (FrameworkException ex) {
-
-			logger.log(Level.WARNING, "Updating page version failed", ex);
-
-		}
-
-		return true;
-
-	}
-
-	/**
-	 * Render all the data-* attributes
-	 *
-	 * @param securityContext
-	 * @param renderContext
-	 */
-	private void renderCustomAttributes(final AsyncBuffer out, final SecurityContext securityContext, final RenderContext renderContext) throws FrameworkException {
-
-		dbNode = this.getNode();
-		EditMode editMode = renderContext.getEditMode(securityContext.getUser(false));
-
-		for (PropertyKey key : getDataPropertyKeys()) {
-
-			String value = getPropertyWithVariableReplacement(renderContext, key).trim();
-
-			if (!(EditMode.RAW.equals(editMode) || EditMode.WIDGET.equals(editMode))) {
-
-				value = escapeForHtmlAttributes(value);
-
+				syncedNode.setProperties(securityContext, map);
 			}
 
-			if (StringUtils.isNotBlank(value)) {
+			final Sync rel = getIncomingRelationship(Sync.class);
+			if (rel != null) {
 
-				out.append(" ").append(key.dbName()).append("=\"").append(value).append("\"");
+				final DOMElement otherNode = (DOMElement) rel.getSourceNode();
+				if (otherNode != null) {
 
-			}
-		}
+					map.clear();
 
-		if (EditMode.RAW.equals(editMode) || EditMode.WIDGET.equals(editMode)) {
+					// sync both ways
+					for (Property htmlProp : otherNode.getHtmlAttributes()) {
+						map.put(htmlProp, getProperty(htmlProp));
+					}
 
-			for (final Property p : rawProps) {
+					map.put(name, getProperty(name));
 
-				String htmlName = "data-structr-meta-" + CaseHelper.toUnderscore(p.jsonName(), false).replaceAll("_", "-");
-				Object value = getProperty(p);
-
-				if ((p instanceof BooleanProperty && (boolean) value) || (!(p instanceof BooleanProperty) && value != null && StringUtils.isNotBlank(value.toString()))) {
-					out.append(" ").append(htmlName).append("=\"").append(value.toString()).append("\"");
+					otherNode.setProperties(securityContext, map);
 				}
 			}
+
+			return true;
 		}
+
+		return false;
 	}
 
 	/**
@@ -888,7 +874,7 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 
 		EditMode editMode = renderContext.getEditMode(securityContext.getUser(false));
 
-		if (!(EditMode.RAW.equals(editMode) || EditMode.WIDGET.equals(editMode)) && !renderContext.appLibRendered() && getProperty(new StringProperty(STRUCTR_ACTION_PROPERTY)) != null) {
+		if (!(EditMode.DEPLOYMENT.equals(editMode) || EditMode.RAW.equals(editMode) || EditMode.WIDGET.equals(editMode)) && !renderContext.appLibRendered() && getProperty(new StringProperty(STRUCTR_ACTION_PROPERTY)) != null) {
 
 			out
 				.append(indent(depth, renderContext))
@@ -908,26 +894,6 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 
 		}
 
-	}
-
-	private Set<PropertyKey> getDataPropertyKeys() {
-
-		if (dataProperties == null) {
-
-			dataProperties = new TreeSet<>();
-
-			final Iterable<String> props = dbNode.getPropertyKeys();
-			for (final String key : props) {
-
-				if (key.startsWith("data-")) {
-
-					dataProperties.add(new GenericProperty(key));
-
-				}
-			}
-		}
-
-		return dataProperties;
 	}
 
 	/**
@@ -975,5 +941,147 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 		}
 
 		return data;
+	}
+
+	// ----- private methods -----
+	private boolean renderDeploymentExportComments(final AsyncBuffer out) {
+
+		final Set<String> instructions = new LinkedHashSet<>();
+
+		getVisibilityInstructions(instructions);
+		getLinkableInstructions(instructions);
+
+		if (!instructions.isEmpty()) {
+
+			out.append("<!-- ");
+
+			for (final Iterator<String> it = instructions.iterator(); it.hasNext();) {
+
+				final String instruction = it.next();
+
+				out.append(instruction);
+
+				if (it.hasNext()) {
+					out.append(", ");
+				}
+			}
+
+			out.append(" -->");
+
+			return true;
+
+		} else {
+
+			return false;
+		}
+	}
+
+	private void getLinkableInstructions(final Set<String> instructions) {
+
+		if (this instanceof LinkSource) {
+
+			final LinkSource linkSourceElement = (LinkSource)this;
+			final Linkable linkable            = linkSourceElement.getProperty(LinkSource.linkable);
+
+			if (linkable != null) {
+
+				final String path = linkable.getPath();
+				if (path != null) {
+
+					instructions.add("@structr:link(" + path + ")");
+
+				} else {
+
+					logger.log(Level.WARNING, "Cannot export linkable relationship, no path.");
+				}
+			}
+		}
+	}
+
+	private void getVisibilityInstructions(final Set<String> instructions) {
+
+		final Page _ownerDocument       = (Page)getOwnerDocument();
+		final boolean pagePublic        = _ownerDocument.isVisibleToPublicUsers();
+		final boolean pageProtected     = _ownerDocument.isVisibleToAuthenticatedUsers();
+		final boolean pagePrivate       = !pagePublic && !pageProtected;
+		final boolean pagePublicOnly    = pagePublic && !pageProtected;
+		final boolean elementPublic     = isVisibleToPublicUsers();
+		final boolean elementProtected  = isVisibleToAuthenticatedUsers();
+		final boolean elementPrivate    = !elementPublic && !elementProtected;
+		final boolean elementPublicOnly = elementPublic && !elementProtected;
+
+		if (pagePrivate && !elementPrivate) {
+
+			if (elementPublicOnly) {
+				instructions.add("@structr:public-only");
+				return;
+			}
+
+			if (elementPublic && elementProtected) {
+				instructions.add("@structr:public");
+				return;
+			}
+
+			if (elementProtected) {
+				instructions.add("@structr:protected");
+				return;
+			}
+		}
+
+		if (pageProtected && !elementProtected) {
+
+			if (elementPublicOnly) {
+				instructions.add("@structr:public-only");
+				return;
+			}
+
+			if (elementPublic && elementProtected) {
+				instructions.add("@structr:public");
+				return;
+			}
+
+			if (elementPrivate) {
+				instructions.add("@structr:private");
+				return;
+			}
+		}
+
+		if (pagePublic && !elementPublic) {
+
+			if (elementPublicOnly) {
+				instructions.add("@structr:public-only");
+				return;
+			}
+
+			if (elementProtected) {
+				instructions.add("@structr:protected");
+				return;
+			}
+
+			if (elementPrivate) {
+				instructions.add("@structr:private");
+				return;
+			}
+		}
+
+		if (pagePublicOnly && !elementPublicOnly) {
+
+			if (elementPublic && elementProtected) {
+				instructions.add("@structr:public");
+				return;
+			}
+
+			if (elementProtected) {
+				instructions.add("@structr:protected");
+				return;
+			}
+
+			if (elementPrivate) {
+				instructions.add("@structr:private");
+				return;
+			}
+
+			return;
+		}
 	}
 }
