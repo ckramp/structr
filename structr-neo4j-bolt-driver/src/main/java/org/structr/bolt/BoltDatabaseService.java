@@ -184,12 +184,6 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 		// make properties available to Cypher statement
 		map.put("properties", properties);
 
-		/*
-		System.out.println("########################################################");
-		System.out.println(labels);
-		System.out.println(properties);
-		*/
-
 		return NodeWrapper.newInstance(this, getCurrentTransaction().getNode(buf.toString(), map));
 	}
 

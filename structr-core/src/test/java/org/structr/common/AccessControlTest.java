@@ -195,7 +195,7 @@ public class AccessControlTest extends StructrTest {
 			try (final Tx tx = app.tx()) {
 				Result result = StructrApp.getInstance(user2Context).nodeQuery(type).getResult();
 
-				assertEquals(2, result.size());
+				assertEquals(1, result.size());
 			}
 
 		} catch (FrameworkException ex) {
@@ -237,7 +237,7 @@ public class AccessControlTest extends StructrTest {
 
 				Result result = StructrApp.getInstance(user2Context).nodeQuery(type).getResult();
 
-				assertEquals(2, result.size());
+				assertEquals(1, result.size());
 			}
 
 		} catch (FrameworkException ex) {

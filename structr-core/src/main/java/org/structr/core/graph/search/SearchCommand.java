@@ -32,6 +32,8 @@ import org.structr.api.Predicate;
 import org.structr.api.graph.PropertyContainer;
 import org.structr.api.index.Index;
 import org.structr.api.search.Occurrence;
+import org.structr.api.search.QueryContext;
+import org.structr.api.util.Iterables;
 import org.structr.common.GraphObjectComparator;
 import org.structr.common.PagingHelper;
 import org.structr.common.SecurityContext;
@@ -43,6 +45,8 @@ import org.structr.core.Result;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.AbstractRelationship;
+import org.structr.core.entity.Principal;
+import org.structr.core.entity.SchemaNode;
 import org.structr.core.graph.Factory;
 import org.structr.core.graph.NodeInterface;
 import org.structr.core.graph.NodeServiceCommand;
@@ -89,11 +93,10 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 	private boolean includeDeletedAndHidden      = true;
 	private boolean sortDescending               = false;
 	private boolean doNotSort                    = false;
-	private String offsetId                      = null;
 	private int pageSize                         = Integer.MAX_VALUE;
 	private int page                             = 1;
 
-	public abstract Factory<S, T> getFactory(final SecurityContext securityContext, final boolean includeDeletedAndHidden, final boolean publicOnly, final int pageSize, final int page, final String offsetId);
+	public abstract Factory<S, T> getFactory(final SecurityContext securityContext, final boolean includeDeletedAndHidden, final boolean publicOnly, final int pageSize, final int page);
 	public abstract boolean isRelationshipSearch();
 	public abstract Index<S> getIndex();
 
@@ -104,7 +107,7 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 			return Result.EMPTY_RESULT;
 		}
 
-		final Factory<S, T> factory  = getFactory(securityContext, includeDeletedAndHidden, publicOnly, pageSize, page, offsetId);
+		final Factory<S, T> factory  = getFactory(securityContext, includeDeletedAndHidden, publicOnly, pageSize, page);
 		boolean hasGraphSources      = false;
 		boolean hasSpatialSource     = false;
 
@@ -201,8 +204,73 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 			}
 
 			// do query
-			final Iterable hits = getIndex().query(rootGroup);
-			intermediateResult  = factory.instantiate(hits);
+                        QueryContext context = new QueryContext();
+                        Principal currentUser = securityContext.getUser(false);
+
+                        //User related context parameters
+                        if(currentUser != null){
+
+                                context.booleanProperty("isAuthenticatedUser", true);
+                                context.booleanProperty("isAdmin", currentUser.isAdmin());
+                                context.stringProperty("uuid", currentUser.getUuid());
+
+
+                        } else {
+
+                                context.booleanProperty("isAnonymousUser",true);
+
+                        }
+
+                        //Pagination parameters
+                        context.intProperty("page", page);
+                        context.intProperty("pageSize", pageSize);
+
+                        //Run non-paged query to get totalResultCount
+                        context.booleanProperty("doPagination", false);
+			final Iterable totalHits = getIndex().query(context,rootGroup);
+                        List<S> list = Iterables.toList(totalHits);
+
+                        int resultCount = list.size();
+
+                         //Only bother with pagination issues when neccessary
+                        if(page >= 1 && resultCount > 0){
+
+                               context.booleanProperty("doPagination", true);
+                               final Iterable pagedHits = getIndex().query(context, rootGroup);
+                               intermediateResult = factory.instantiate(pagedHits, resultCount);
+
+                        //Handle pagination with negative page
+                        } else if(page < 0 && resultCount > 0){
+
+                               int maxPage = resultCount/pageSize;
+                               int negativePageOffset = Math.abs(page);
+                               int newPage;
+
+                               if(negativePageOffset > maxPage){
+
+                                    newPage = 1;
+
+                               } else {
+
+                                    newPage = maxPage - negativePageOffset + 1;
+
+                               }
+
+                               this.page = newPage;
+
+                               context.intProperty("page", page);
+
+                               context.booleanProperty("doPagination", true);
+                               final Iterable pagedHits = getIndex().query(context, rootGroup);
+                               intermediateResult = factory.instantiate(pagedHits, resultCount);
+
+                        } else {
+
+                                intermediateResult  = factory.instantiate(list, resultCount);
+
+                        }
+
+
 		}
 
 		if (intermediateResult != null && (hasEmptySearchFields || hasGraphSources || hasSpatialSource)) {
@@ -255,7 +323,7 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 			Collections.sort(finalResult, new GraphObjectComparator(sortKey, sortDescending));
 
 			// return paged final result
-			return new Result(PagingHelper.subList(finalResult, pageSize, page, offsetId), resultCount, true, false);
+			return new Result(PagingHelper.subList(finalResult, pageSize, page), resultCount, true, false);
 
 		} else {
 
@@ -393,12 +461,6 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 	@Override
 	public org.structr.core.app.Query<T> includeDeletedAndHidden(final boolean includeDeletedAndHidden) {
 		this.includeDeletedAndHidden = includeDeletedAndHidden;
-		return this;
-	}
-
-	@Override
-	public org.structr.core.app.Query<T> offsetId(final String offsetId) {
-		this.offsetId = offsetId;
 		return this;
 	}
 

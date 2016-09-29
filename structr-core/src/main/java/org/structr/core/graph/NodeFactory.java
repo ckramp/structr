@@ -57,12 +57,12 @@ public class NodeFactory<T extends NodeInterface & AccessControllable> extends F
 		super(securityContext, includeDeletedAndHidden, publicOnly);
 	}
 
-	public NodeFactory(final SecurityContext securityContext, final int pageSize, final int page, final String offsetId) {
-		super(securityContext, pageSize, page, offsetId);
+	public NodeFactory(final SecurityContext securityContext, final int pageSize, final int page) {
+		super(securityContext, pageSize, page);
 	}
 
-	public NodeFactory(final SecurityContext securityContext, final boolean includeDeletedAndHidden, final boolean publicOnly, final int pageSize, final int page, final String offsetId) {
-		super(securityContext, includeDeletedAndHidden, publicOnly, pageSize, page, offsetId);
+	public NodeFactory(final SecurityContext securityContext, final boolean includeDeletedAndHidden, final boolean publicOnly, final int pageSize, final int page) {
+		super(securityContext, includeDeletedAndHidden, publicOnly, pageSize, page);
 	}
 
 	@Override
@@ -120,13 +120,8 @@ public class NodeFactory<T extends NodeInterface & AccessControllable> extends F
 		newNode.setRawPathSegment(pathSegment);
 		newNode.onNodeInstantiation(isCreation);
 
-		// check access
-		if (isCreation || securityContext.isReadable(newNode, factoryProfile.includeDeletedAndHidden(), factoryProfile.publicOnly())) {
+                return newNode;
 
-			return newNode;
-		}
-
-		return null;
 	}
 
 	@Override

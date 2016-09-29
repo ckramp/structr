@@ -41,7 +41,7 @@ import org.structr.websocket.message.WebSocketMessage;
 /**
  * Websocket command to retrieve nodes which are in use on more than
  * one page.
- * 
+ *
  *
  */
 public class ListComponentsCommand extends AbstractCommand {
@@ -78,7 +78,7 @@ public class ListComponentsCommand extends AbstractCommand {
 			ShadowDocument doc = (ShadowDocument) resultList.get(0);
 			
 			resultList.addAll(doc.getProperty(Page.elements));
-			
+
 			// Filter list and return only top level nodes
 			for (GraphObject obj : resultList) {
 
@@ -87,7 +87,7 @@ public class ListComponentsCommand extends AbstractCommand {
 					DOMNode node = (DOMNode) obj;
 
 					if (!doc.equals(node) && !node.hasIncomingRelationships(DOMChildren.class)) {
-						
+
 						filteredResults.add(node);
 
 					}
@@ -126,14 +126,14 @@ public class ListComponentsCommand extends AbstractCommand {
 
 			// save raw result count
 			int resultCountBeforePaging = filteredResults.size();
-			
+
 			// set full result list
-			webSocketData.setResult(PagingHelper.subList(filteredResults, pageSize, page, null));
+			webSocketData.setResult(PagingHelper.subList(filteredResults, pageSize, page));
 			webSocketData.setRawResultCount(resultCountBeforePaging);
 
 			// send only over local connection
 			getWebSocket().send(webSocketData, true);
-			
+
 		} catch (FrameworkException fex) {
 
 			logger.warn("Exception occured", fex);

@@ -38,7 +38,7 @@ import org.structr.websocket.message.WebSocketMessage;
 
 /**
  * Websocket command to a list of nodes by type.
- * 
+ *
  * Supports paging and ignores thumbnails.
  *
  *
@@ -49,9 +49,9 @@ public class GetByTypeCommand extends AbstractCommand {
 	private static final Logger logger = LoggerFactory.getLogger(GetByTypeCommand.class.getName());
 	
 	static {
-		
+
 		StructrWebSocket.addCommand(GetByTypeCommand.class);
-		
+
 	}
 
 	@Override
@@ -71,14 +71,14 @@ public class GetByTypeCommand extends AbstractCommand {
 		if (properties != null) {
 			securityContext.setCustomView(StringUtils.split(properties, ","));
 		}
-		
+
 		final String sortOrder   = webSocketData.getSortOrder();
 		final String sortKey     = webSocketData.getSortKey();
 		final int pageSize       = webSocketData.getPageSize();
 		final int page           = webSocketData.getPage();
 		PropertyKey sortProperty = StructrApp.getConfiguration().getPropertyKeyForJSONName(type, sortKey);
 
-		
+
 		final Query query = StructrApp.getInstance(securityContext).nodeQuery(type).includeDeletedAndHidden(includeDeletedAndHidden).sort(sortProperty).order("desc".equals(sortOrder));
 
 		// for image lists, suppress thumbnails
@@ -96,7 +96,7 @@ public class GetByTypeCommand extends AbstractCommand {
 			int resultCountBeforePaging = result.size();
 
 			// set full result list
-			webSocketData.setResult(PagingHelper.subList(result.getResults(), pageSize, page, null));
+			webSocketData.setResult(PagingHelper.subList(result.getResults(), pageSize, page));
 			webSocketData.setRawResultCount(resultCountBeforePaging);
 
 			// send only over local connection
