@@ -82,10 +82,18 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		if (!success) {
 
-			// we need to invalidate all existing references because we cannot
-			// be sure that they contain the correct values after a rollback
+			// We need to invalidate all existing references because we cannot
+			// be sure that they contain the correct values after a rollback.
 			for (final EntityWrapper entity : modifiedEntities) {
 				entity.stale();
+			}
+
+		} else {
+
+			// Invalidate all nodes that are modified in this transaction
+			// so that the relationship caches are rebuilt.
+			for (final EntityWrapper entity : modifiedEntities) {
+				entity.invalidate();
 			}
 		}
 
@@ -124,6 +132,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		try {
 
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
+
 			return getLong(statement, Collections.EMPTY_MAP);
 
 		} catch (TransientException tex) {
@@ -138,6 +150,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		try {
 
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
+
 			return tx.run(statement, map).next().get(0).asLong();
 
 		} catch (TransientException tex) {
@@ -151,6 +167,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 	public Object getObject(final String statement, final Map<String, Object> map) {
 
 		try {
+
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
 
 			final StatementResult result = tx.run(statement, map);
 			if (result.hasNext()) {
@@ -172,6 +192,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		try {
 
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
+
 			return tx.run(statement, map).next().get(0).asEntity();
 
 		} catch (TransientException tex) {
@@ -185,6 +209,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 	public Node getNode(final String statement, final Map<String, Object> map) {
 
 		try {
+
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
 
 			return tx.run(statement, map).next().get(0).asNode();
 
@@ -200,6 +228,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		try {
 
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
+
 			return tx.run(statement, map).next().get(0).asRelationship();
 
 		} catch (TransientException tex) {
@@ -213,6 +245,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 	public Iterable<Node> getNodes(final String statement, final Map<String, Object> map) {
 
 		try {
+
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
 
 			return Iterables.map(new RecordNodeMapper(), new StatementIterable(tx.run(statement, map)));
 
@@ -228,6 +264,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		try {
 
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
+
 			return Iterables.map(new RecordRelationshipMapper(), new StatementIterable(tx.run(statement, map)));
 
 		} catch (TransientException tex) {
@@ -242,6 +282,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		try {
 
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
+
 			return Iterables.map(new RecordLongMapper(), new StatementIterable(tx.run(statement, map)));
 
 		} catch (TransientException tex) {
@@ -255,6 +299,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 	public Iterable<String> getStrings(final String statement, final Map<String, Object> map) {
 
 		try {
+
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
 
 			final StatementResult result = tx.run(statement, map);
 			final Record record = result.next();
@@ -274,6 +322,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 
 		try {
 
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
+
 			return new StatementResultWrapper(db, tx.run(statement, map));
 
 		} catch (TransientException tex) {
@@ -287,6 +339,10 @@ public class SessionTransaction implements org.structr.api.Transaction {
 	public void set(final String statement, final Map<String, Object> map) {
 
 		try {
+
+			if (db.logQueries()) {
+				System.out.println(statement);
+			}
 
 			tx.run(statement, map);
 

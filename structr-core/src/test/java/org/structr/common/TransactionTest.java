@@ -21,6 +21,7 @@ package org.structr.common;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,6 +37,7 @@ import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.SchemaNode;
 import org.structr.core.entity.SchemaProperty;
 import org.structr.core.entity.TestOne;
+import org.structr.core.entity.TestSix;
 import org.structr.core.graph.NodeAttribute;
 import org.structr.core.graph.NodeInterface;
 import org.structr.core.graph.Tx;
@@ -200,7 +202,7 @@ public class TransactionTest extends StructrTest {
 	public void testTransactionIsolation() {
 
 		// Tests the transaction isolation of the underlying database layer.
-		
+
 		// Create a node and use ten different threads to set a property on
 		// it in a transaction. Observe the property value to check that the
 		// threads do not interfere with each other.
@@ -233,6 +235,36 @@ public class TransactionTest extends StructrTest {
 
 		} catch (Throwable fex) {
 			fail("Unexpected exception");
+		}
+	}
+
+	public void testConcurrentIdenticalRelationshipCreation() {
+
+		try {
+			final ExecutorService service = Executors.newCachedThreadPool();
+			final TestSix source          = createTestNode(TestSix.class);
+			final TestOne target          = createTestNode(TestOne.class);
+
+			final Future one = service.submit(new RelationshipCreator(source, target));
+			final Future two = service.submit(new RelationshipCreator(source, target));
+
+			// wait for completion
+			one.get();
+			two.get();
+
+			try (final Tx tx = app.tx()) {
+
+				// check for a single relationship since all three parts of
+				// both relationships are equal => only one should be created
+				final List<TestOne> list = source.getProperty(TestSix.oneToManyTestOnes);
+
+				assertEquals("Invalid concurrent identical relationship creation result", 1, list.size());
+
+				tx.success();
+			}
+
+		} catch (ExecutionException | InterruptedException | FrameworkException fex) {
+			fex.printStackTrace();
 		}
 	}
 
@@ -281,5 +313,33 @@ public class TransactionTest extends StructrTest {
 			}
 		}
 
+	}
+
+	private static class RelationshipCreator implements Runnable {
+
+		private TestSix source = null;
+		private TestOne target = null;
+
+		public RelationshipCreator(final TestSix source, final TestOne  target) {
+			this.source = source;
+			this.target = target;
+		}
+
+		@Override
+		public void run() {
+
+			try (final Tx tx = StructrApp.getInstance().tx()) {
+
+				final List<TestOne> list = new LinkedList<>();
+				list.add(target);
+
+				source.setProperty(TestSix.oneToManyTestOnes, list);
+
+				tx.success();
+
+			} catch (FrameworkException fex) {
+				fex.printStackTrace();
+			}
+		}
 	}
 }
