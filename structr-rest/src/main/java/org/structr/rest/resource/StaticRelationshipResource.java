@@ -18,7 +18,6 @@
  */
 package org.structr.rest.resource;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
@@ -29,8 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.ScriptRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.api.Predicate;
@@ -303,6 +300,7 @@ public class StaticRelationshipResource extends SortableResource {
 	public RestMethodResult doPost(final Map<String, Object> propertySet) throws FrameworkException {
 
 		final GraphObject sourceNode = typedIdResource.getEntity();
+		RestMethodResult result = null;
 
 		if (sourceNode != null && propertyKey != null && propertyKey instanceof RelationProperty) {
 
@@ -339,7 +337,7 @@ public class StaticRelationshipResource extends SortableResource {
 
 			if (newNode != null) {
 
-				final RestMethodResult result = new RestMethodResult(HttpServletResponse.SC_CREATED);
+				result = new RestMethodResult(HttpServletResponse.SC_CREATED);
 				result.addHeader("Location", buildLocationHeader(newNode));
 
 				return result;
@@ -347,55 +345,30 @@ public class StaticRelationshipResource extends SortableResource {
 
 		} else {
 
-			// look for methods that have an @Export annotation
-			final GraphObject entity = typedIdResource.getIdResource().getEntity();
-			final Class entityType   = typedIdResource.getEntityClass();
-			final String methodName  = typeResource.getRawType();
+			final Class entityType  = typedIdResource.getTypeResource().getEntityClass();
+			final String methodName = typeResource.getRawType();
 
-			if (entity != null && entityType != null && methodName != null) {
+			try {
+				final String source = SchemaMethodResource.findMethodSource(entityType, methodName);
+				result = SchemaMethodResource.invoke(securityContext, typedIdResource.getEntity(), source, propertySet);
 
-				final Object obj = entity.invokeMethod(methodName, propertySet, true);
+			} catch (IllegalPathException ex) {
 
-				if (obj instanceof RestMethodResult) {
+				// try direct invocation of the schema method on the node type
+				try {
 
-					return (RestMethodResult)obj;
+					result = SchemaMethodResource.wrapInResult(typedIdResource.getEntity().invokeMethod(methodName, propertySet, true));
 
-				} else {
-
-					final RestMethodResult result = new RestMethodResult(200);
-
-					// unwrap nested object(s)
-					unwrapTo(obj, result);
-
-					return result;
+				} catch (Throwable t) {
+					logger.warn("Unable to execute {}.{}: {}", entityType.getSimpleName(), methodName, t.getMessage());
 				}
 			}
 		}
 
-		throw new IllegalPathException("Illegal path");
-	}
-
-	private void unwrapTo(final Object source, final RestMethodResult result) {
-
-		if (source != null) {
-
-			final Object unwrapped = Context.jsToJava(source, ScriptRuntime.ObjectClass);
-			if (unwrapped.getClass().isArray()) {
-
-				for (final Object element : (Object[])unwrapped) {
-					unwrapTo(element, result);
-				}
-
-			} else if (unwrapped instanceof Collection) {
-
-				for (final Object element : (Collection)unwrapped) {
-					unwrapTo(element, result);
-				}
-
-			} else if (unwrapped instanceof GraphObject) {
-
-				result.addContent((GraphObject)unwrapped);
-			}
+		if (result == null) {
+			throw new IllegalPathException("Illegal path");
+		} else {
+			return result;
 		}
 	}
 

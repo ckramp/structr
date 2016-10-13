@@ -288,7 +288,9 @@ public class TypeResource extends SortableResource {
 
 		} else if (next instanceof TypeResource) {
 
-			throw new IllegalPathException("Cannot apply a second type resource to this type resource");
+			// two type resources, must be schema method execution
+			// the constructor will throw an IllegalPathException if there is no method to execute
+			return new SchemaMethodResource(securityContext, this, (TypeResource)next);
 		}
 
 		return super.tryCombineWith(next);
