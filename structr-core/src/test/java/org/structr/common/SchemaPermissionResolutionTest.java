@@ -21,6 +21,9 @@ package org.structr.common;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import org.junit.Test;
 import org.structr.core.Result;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.SchemaNode;
@@ -40,14 +43,8 @@ public class SchemaPermissionResolutionTest extends StructrTest{
 
 	//~--- methods --------------------------------------------------------
 
-	@Override
-	public void test00DbAvailable() {
-
-		super.test00DbAvailable();
-
-	}
-
-	public void test01SimpleSchemaReadPermissionResolution() {
+	@Test
+	public void simpleSchemaReadPermissionResolution() {
 
             try {
 
@@ -113,7 +110,8 @@ public class SchemaPermissionResolutionTest extends StructrTest{
 
 	}
 
-	public void test02NestedSchemaReadPermissionResolution() {
+        @Test
+	public void nestedSchemaReadPermissionResolution() {
 
             try {
 

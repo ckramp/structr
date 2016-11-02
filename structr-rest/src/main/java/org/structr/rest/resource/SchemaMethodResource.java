@@ -71,10 +71,10 @@ public class SchemaMethodResource extends SortableResource {
 		return typeResource.getResourceSignature() + "/" + methodResource.getResourceSignature();
 	}
 
-	@Override
-	public Result doGet(final PropertyKey sortKey, final boolean sortDescending, final int pageSize, final int page, final String offsetId) throws FrameworkException {
-		throw new IllegalMethodException("GET not allowed on " + getResourceSignature());
-	}
+        @Override
+        public Result doGet(final PropertyKey sortKey, final boolean sortDescending, int pageSize, int page) throws FrameworkException {
+            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        }
 
 	@Override
 	public RestMethodResult doPost(final Map<String, Object> propertySet) throws FrameworkException {
@@ -214,4 +214,6 @@ public class SchemaMethodResource extends SortableResource {
 
 		return result;
 	}
+
+
 }
