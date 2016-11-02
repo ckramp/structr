@@ -173,6 +173,10 @@ function wsConnect() {
 
 				StructrModel.callCallback(data.callback, data.data[data.data['key']]);
 
+			} else if (command === 'CONSOLE') { /*********************** CONSOLE ************************/
+
+				StructrModel.callCallback(data.callback, data);
+
 			} else if (command === 'STATUS') { /*********************** STATUS ************************/
 
 				_Logger.log(_LogType.WS[command], 'Error code: ' + code, message);
@@ -394,7 +398,7 @@ function wsConnect() {
 							entity = StructrModel.create(entity, null, false);
 							var el;
 							if (entity.isContent || entity.type === 'Template') {
-								el = _Contents.appendContentElement(entity, components, true);
+								el = _Elements.appendContentElement(entity, components, true);
 							} else {
 								el = _Pages.appendElementElement(entity, components, true);
 							}

@@ -20,6 +20,7 @@ package org.structr.core.graph;
 
 import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -72,7 +73,6 @@ public class ModificationQueue {
 
 		long t0                  = System.currentTimeMillis();
 		boolean hasModifications = true;
-		boolean valid = true;
 
 		// collect all modified nodes
 		while (hasModifications) {
@@ -84,7 +84,10 @@ public class ModificationQueue {
 				if (state.wasModified()) {
 
 					// do callback according to entry state
-					valid &= state.doInnerCallback(this, securityContext, errorBuffer);
+					if (!state.doInnerCallback(this, securityContext, errorBuffer)) {
+						return false;
+					}
+
 					hasModifications = true;
 				}
 			}
@@ -95,39 +98,40 @@ public class ModificationQueue {
 			logger.info("{} ms", t);
 		}
 
-		return valid;
+		return true;
 	}
 
 	public boolean doValidation(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final boolean doValidation) throws FrameworkException {
 
-		long t0       = System.currentTimeMillis();
-		boolean valid = true;
+		long t0 = System.currentTimeMillis();
 
 		// do validation and indexing
 		for (Entry<String, GraphObjectModificationState> entry : modifications.entrySet()) {
 
 			// do callback according to entry state
-			valid &= entry.getValue().doValidationAndIndexing(this, securityContext, errorBuffer, doValidation);
+			if (!entry.getValue().doValidationAndIndexing(this, securityContext, errorBuffer, doValidation)) {
+				return false;
+			}
 		}
 
 		long t = System.currentTimeMillis() - t0;
-		if (t > 1000) {
-			logger.info("{} ms", t);
+		if (t > 3000) {
+			logger.info("doValidation: {} ms", t);
 		}
 
-		return valid;
+		return true;
 	}
 
 	public boolean doPostProcessing(final SecurityContext securityContext, final ErrorBuffer errorBuffer) throws FrameworkException {
 
-		boolean valid = true;
-
 		for (final TransactionPostProcess process : postProcesses.values()) {
 
-			valid &= process.execute(securityContext, errorBuffer);
+			if (!process.execute(securityContext, errorBuffer)) {
+				return false;
+			}
 		}
 
-		return valid;
+		return true;
 	}
 
 	public void doOuterCallbacks(final SecurityContext securityContext) {
@@ -140,8 +144,8 @@ public class ModificationQueue {
 		}
 
 		long t = System.currentTimeMillis() - t0;
-		if (t > 1000) {
-			logger.info("{} ms", t);
+		if (t > 3000) {
+			logger.info("doOutCallbacks: {} ms", t);
 		}
 	}
 
@@ -228,7 +232,7 @@ public class ModificationQueue {
 		getState(node).modify(user, key, previousValue, newValue);
 
 		if (key != null&& key.requiresSynchronization()) {
-			synchronizationKeys.add(node.getClass().getSimpleName().concat(".").concat(key.getSynchronizationKey()));
+			synchronizationKeys.add(key.getSynchronizationKey());
 		}
 	}
 
@@ -236,7 +240,7 @@ public class ModificationQueue {
 		getState(relationship).modify(user, key, previousValue, newValue);
 
 		if (key != null && key.requiresSynchronization()) {
-			synchronizationKeys.add(relationship.getClass().getSimpleName().concat(".").concat(key.getSynchronizationKey()));
+			synchronizationKeys.add(key.getSynchronizationKey());
 		}
 	}
 
@@ -328,6 +332,69 @@ public class ModificationQueue {
 
 	public void registerRelCallback(final RelationshipInterface rel, final String callbackId) {
 		getState(rel).setCallbackId(callbackId);
+	}
+
+	/**
+	 * Checks if the given key is present in the modifiedProperties of this queue.<br><br>
+	 *
+	 * This method is convenient if only one key has to be checked. If different
+	 * actions should be taken for different keys one should rather use {@link #getModifiedProperties}.
+	 *
+	 * Note: This method only works for regular properties, not relationship properties (i.e. owner etc)
+	 *
+	 * @param key The key to check
+	 * @return
+	 */
+	public boolean isPropertyModified(final PropertyKey key) {
+
+		for (GraphObjectModificationState state : modifications.values()) {
+
+			for (PropertyKey k : state.getModifiedProperties().keySet()) {
+
+				if (k.equals(key)) {
+
+					return true;
+
+				}
+
+			}
+
+		}
+
+		return false;
+	}
+
+	/**
+	 * Returns a set of all modified keys.<br><br>
+	 * Useful if different actions should be taken for different keys and we
+	 * don't want to iterate over the subsets multiple times.
+	 *
+	 * If only one key is to be checked {@link #isPropertyModified} is preferred.
+	 *
+	 * Note: This method only works for regular properties, not relationship properties (i.e. owner etc)
+	 *
+	 * @return Set with all modified keys
+	 */
+	public Set<PropertyKey> getModifiedProperties () {
+
+		HashSet<PropertyKey> modifiedKeys = new HashSet<>();
+
+		for (GraphObjectModificationState state : modifications.values()) {
+
+			for (PropertyKey key : state.getModifiedProperties().keySet()) {
+
+				if (!modifiedKeys.contains(key)) {
+
+					modifiedKeys.add(key);
+
+				}
+
+			}
+
+		}
+
+		return modifiedKeys;
+
 	}
 
 	// ----- private methods -----

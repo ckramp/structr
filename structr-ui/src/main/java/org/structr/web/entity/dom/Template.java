@@ -63,16 +63,23 @@ public class Template extends Content {
 				out.append(DOMNode.indent(depth, renderContext));
 			}
 
-			out.append("<structr:template src=\"");
+			if (_syncedNode == null) {
+				out.append("<structr:template src=\"");
+			} else {
+				out.append("<structr:component src=\"");
+			}
 
 			if (_syncedNode != null) {
 
-				final String name = _syncedNode.getProperty(AbstractNode.name);
-				out.append(name != null ? name : _syncedNode.getUuid());
+				// use name of synced node
+				final String _name = _syncedNode.getProperty(AbstractNode.name);
+				out.append(_name != null ? _name : _syncedNode.getUuid());
 
 			} else {
 
-				out.append(getUuid());
+				// use name of local template
+				final String _name = getProperty(AbstractNode.name);
+				out.append(_name != null ? _name : getUuid());
 			}
 
 			out.append("\"");
@@ -82,7 +89,6 @@ public class Template extends Content {
 
 			out.append(">");
 
-			// TODO: we need to include the children here...
 			// fetch children
 			final List<DOMChildren> rels = getChildRelationships();
 			if (rels.isEmpty()) {
@@ -100,7 +106,12 @@ public class Template extends Content {
 			}
 
 			out.append(DOMNode.indent(depth, renderContext));
-			out.append("</structr:template>");
+
+			if (_syncedNode == null) {
+				out.append("</structr:template>");
+			} else {
+				out.append("</structr:component>");
+			}
 
 		} else {
 

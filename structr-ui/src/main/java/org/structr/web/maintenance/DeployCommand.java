@@ -116,7 +116,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 		if (StringUtils.isBlank(path)) {
 
-			throw new FrameworkException(422, "Please provide source path for deployment.");
+			throw new FrameworkException(422, "Please provide 'source' attribute for deployment source directory path.");
 		}
 
 		final Path source = Paths.get(path);
@@ -134,7 +134,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		final Path usersConf = source.resolve("security/users.json");
 		if (Files.exists(usersConf)) {
 
-			logger.info("Reading {}..", usersConf);
+			info("Reading {}..", usersConf);
 			importMapData(User.class, readConfigMap(usersConf));
 		}
 
@@ -142,7 +142,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		final Path grantsConf = source.resolve("security/grants.json");
 		if (Files.exists(grantsConf)) {
 
-			logger.info("Reading {}..", grantsConf);
+			info("Reading {}..", grantsConf);
 			importListData(ResourceAccess.class, readConfigList(grantsConf));
 		}
 
@@ -150,7 +150,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		final Path filesConfFile = source.resolve("files.json");
 		if (Files.exists(filesConfFile)) {
 
-			logger.info("Reading {}..", filesConfFile);
+			info("Reading {}..", filesConfFile);
 			filesConf.putAll(readConfigMap(filesConfFile));
 		}
 
@@ -158,7 +158,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		final Path pagesConfFile = source.resolve("pages.json");
 		if (Files.exists(pagesConfFile)) {
 
-			logger.info("Reading {}..", pagesConfFile);
+			info("Reading {}..", pagesConfFile);
 			pagesConf.putAll(readConfigMap(pagesConfFile));
 		}
 
@@ -166,7 +166,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		final Path componentsConfFile = source.resolve("components.json");
 		if (Files.exists(componentsConfFile)) {
 
-			logger.info("Reading {}..", componentsConfFile);
+			info("Reading {}..", componentsConfFile);
 			componentsConf.putAll(readConfigMap(componentsConfFile));
 		}
 
@@ -174,7 +174,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		final Path templatesConfFile = source.resolve("templates.json");
 		if (Files.exists(templatesConfFile)) {
 
-			logger.info("Reading {}..", templatesConfFile);
+			info("Reading {}..", templatesConfFile);
 			templatesConf.putAll(readConfigMap(templatesConfFile));
 		}
 
@@ -184,7 +184,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			try {
 
-				logger.info("Importing data from schema/ directory..");
+				info("Importing data from schema/ directory..");
 				Files.walkFileTree(schema, new SchemaImportVisitor(schema));
 
 			} catch (IOException ioex) {
@@ -198,7 +198,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			try {
 
-				logger.info("Importing files...");
+				info("Importing files...");
 				Files.walkFileTree(files, new FileImportVisitor(files, filesConf));
 
 			} catch (IOException ioex) {
@@ -212,7 +212,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			try {
 
-				logger.info("Importing templates..");
+				info("Importing templates..");
 				Files.walkFileTree(templates, new TemplateImportVisitor(templatesConf));
 
 			} catch (IOException ioex) {
@@ -226,7 +226,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			try {
 
-				logger.info("Importing shared components..");
+				info("Importing shared components..");
 				Files.walkFileTree(components, new ComponentImportVisitor(componentsConf));
 
 			} catch (IOException ioex) {
@@ -240,7 +240,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			try {
 
-				logger.info("Importing pages..");
+				info("Importing pages..");
 				Files.walkFileTree(pages, new PageImportVisitor(pages, pagesConf));
 
 			} catch (IOException ioex) {
@@ -254,7 +254,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			try (final Tx tx = StructrApp.getInstance().tx()) {
 
-				logger.info("Applying configuration from {}..", conf);
+				info("Applying configuration from {}..", conf);
 
 				final String confSource = new String(Files.readAllBytes(conf), Charset.forName("utf-8"));
 				Scripting.evaluate(new ActionContext(SecurityContext.getSuperUserInstance()), null, confSource.trim());
@@ -266,12 +266,18 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 			}
 		}
 
-		logger.info("Import from {} done.", source.toString());
+		info("Import from {} done.", source.toString());
 	}
 
 	private void doExport(final Map<String, Object> attributes) throws FrameworkException {
 
 		final String path  = (String) attributes.get("target");
+
+		if (StringUtils.isBlank(path)) {
+
+			throw new FrameworkException(422, "Please provide target path for deployment export.");
+		}
+
 		final Path target  = Paths.get(path);
 
 		if (Files.exists(target)) {
@@ -452,7 +458,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 				for (final DOMNode node : shadowDocument.getProperty(Page.elements)) {
 
 					// skip templates, nodes in trash and non-toplevel nodes
-					if (node instanceof Content || node.inTrash() || node.getProperty(DOMNode.parent) != null) {
+					if (node.inTrash() || node.getProperty(DOMNode.parent) != null) {
 						continue;
 					}
 
@@ -504,28 +510,14 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 		try (final Tx tx = app.tx()) {
 
-			// export template nodes anywhere in the pages tree or shared components view
+			// export template nodes anywhere in the pages tree which are not related to shared components
 			for (final Template template : app.nodeQuery(Template.class).getAsList()) {
 
-				if (template.inTrash()) {
+				if (template.inTrash() || template.getProperty(DOMNode.sharedComponent) != null) {
 					continue;
 				}
 
 				exportTemplateSource(target, template, configuration);
-			}
-
-			final ShadowDocument shadowDocument = app.nodeQuery(ShadowDocument.class).getFirst();
-			if (shadowDocument != null) {
-
-				for (final DOMNode node : shadowDocument.getProperty(Page.elements)) {
-
-					// skip everything except templates, skip nodes in trash and non-toplevel nodes
-					if (!(node instanceof Content) || node.inTrash() || node.getProperty(DOMNode.parent) != null) {
-						continue;
-					}
-
-					exportTemplateSource(target, node, configuration);
-				}
 			}
 
 			tx.success();

@@ -37,7 +37,6 @@ import org.apache.sshd.common.config.keys.PublicKeyEntryResolver;
 import org.apache.sshd.common.file.FileSystemFactory;
 import org.apache.sshd.common.session.Session;
 import org.apache.sshd.server.CommandFactory;
-import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.auth.password.PasswordAuthenticator;
 import org.apache.sshd.server.auth.pubkey.PublickeyAuthenticator;
@@ -56,6 +55,7 @@ import org.structr.api.service.SingletonService;
 import org.structr.api.service.StructrServices;
 import org.structr.common.AccessMode;
 import org.structr.common.SecurityContext;
+import org.structr.console.Console.ConsoleMode;
 import org.structr.core.Services;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
@@ -68,12 +68,13 @@ import org.structr.rest.auth.AuthHelper;
  *
  *
  */
-public class SSHService implements SingletonService, PasswordAuthenticator, PublickeyAuthenticator, FileSystemFactory, CommandFactory, Factory<org.apache.sshd.server.Command>, SftpEventListener {
+public class SSHService implements SingletonService, PasswordAuthenticator, PublickeyAuthenticator, FileSystemFactory, Factory<org.apache.sshd.server.Command>, SftpEventListener, CommandFactory {
 
 	private static final Logger logger = LoggerFactory.getLogger(SSHService.class.getName());
 
 	public static final String APPLICATION_SSH_PORT = "application.ssh.port";
 
+	private final ScpCommandFactory scp     = new ScpCommandFactory.Builder().build();
 	private SshServer server                = null;
 	private boolean running                 = false;
 	private SecurityContext securityContext = null;
@@ -92,20 +93,13 @@ public class SSHService implements SingletonService, PasswordAuthenticator, Publ
 
 
 		server.setKeyPairProvider(hostKeyProvider);
-		server.setPort(Services.parseInt(APPLICATION_SSH_PORT, 8022));
+		server.setPort(Services.parseInt(config.getProperty(APPLICATION_SSH_PORT), 8022));
 		server.setPasswordAuthenticator(this);
 		server.setPublickeyAuthenticator(this);
 		server.setFileSystemFactory(this);
-		server.setSubsystemFactories(getSftpSubsystem());
+		server.setSubsystemFactories(getSubsystems());
 		server.setShellFactory(this);
-
-
-		final ScpCommandFactory scp = new ScpCommandFactory.Builder()
-			//.withDelegate(this)
-			//.addEventListener(new StructrScpTransferEventListener());
-			.build();
-
-		server.setCommandFactory(scp);
+		server.setCommandFactory(this);
 
 		try {
 
@@ -206,13 +200,32 @@ public class SSHService implements SingletonService, PasswordAuthenticator, Publ
 
 				securityContext = SecurityContext.getInstance(principal, AccessMode.Backend);
 
+				// check single (main) pubkey
 				final String pubKeyData = principal.getProperty(Principal.publicKey);
-
 				if (pubKeyData != null) {
 
 					final PublicKey pubKey = PublicKeyEntry.parsePublicKeyEntry(pubKeyData).resolvePublicKey(PublicKeyEntryResolver.FAILING);
 
 					isValid = KeyUtils.compareKeys(pubKey, key);
+
+				}
+
+				// check array of pubkeys for this user
+				final String[] pubKeysData = principal.getProperty(Principal.publicKeys);
+				if (pubKeysData != null) {
+
+					for (final String k : pubKeysData) {
+
+						if (k != null) {
+							final PublicKey pubKey = PublicKeyEntry.parsePublicKeyEntry(k).resolvePublicKey(PublicKeyEntryResolver.FAILING);
+							if (KeyUtils.compareKeys(pubKey, key)) {
+
+								isValid = true;
+								break;
+							}
+						}
+					}
+
 				}
 			}
 
@@ -230,43 +243,17 @@ public class SSHService implements SingletonService, PasswordAuthenticator, Publ
 			}
 
 		} catch (IOException ex) {
-			logger.error("", ex);
+			logger.error("Unable to authenticate session", ex);
 		}
 
 		return isValid;
 	}
 
-	@Override
-	public org.apache.sshd.server.Command createCommand(final String command) {
-
-		final StructrShellCommand cmd = new StructrShellCommand() {
-
-			@Override
-			public void start(final Environment env) throws IOException {
-
-				super.start(env);
-
-				// non-interactively handle the command
-				this.handleLine(command);
-				this.flush();
-				this.handleExit();
-			}
-
-			@Override
-			public boolean isInteractive() {
-				return false;
-			}
-		};
-
-		return cmd;
-	}
-
-
 	private Tx currentTransaction = null;
 
 	@Override
 	public org.apache.sshd.server.Command create() {
-		return new StructrShellCommand();
+		return new StructrConsoleCommand(securityContext);
 	}
 
 	// ----- private methods -----
@@ -392,17 +379,67 @@ public class SSHService implements SingletonService, PasswordAuthenticator, Publ
 	public void modifiedAttributes(ServerSession session, Path path, Map<String, ?> attrs, Throwable thrown) {
 	}
 
+	// ----- interface CommandFactory -----
+	@Override
+	public org.apache.sshd.server.Command createCommand(final String command) {
+
+		if (command.startsWith("scp ")) {
+			return scp.createCommand(command);
+		}
+
+		if (command.startsWith("javascript ")) {
+			return new StructrConsoleCommand(securityContext, ConsoleMode.JavaScript, command.substring(11));
+		}
+
+		if (command.startsWith("structrscript ")) {
+			return new StructrConsoleCommand(securityContext, ConsoleMode.StructrScript, command.substring(14));
+		}
+
+		if (command.startsWith("cypher ")) {
+			return new StructrConsoleCommand(securityContext, ConsoleMode.Cypher, command.substring(7));
+		}
+
+		if (command.startsWith("admin ")) {
+			return new StructrConsoleCommand(securityContext, ConsoleMode.AdminShell, command.substring(6));
+		}
+
+		if (command.startsWith("rest ")) {
+			return new StructrConsoleCommand(securityContext, ConsoleMode.REST, command.substring(5));
+		}
+
+		throw new IllegalStateException("Unknown subsystem for command '" + command + "'");
+	}
+
 	// ----- private methods -----
-	private List<NamedFactory<org.apache.sshd.server.Command>> getSftpSubsystem() {
+	private List<NamedFactory<org.apache.sshd.server.Command>> getSubsystems() {
 
 		final List<NamedFactory<org.apache.sshd.server.Command>> list = new LinkedList<>();
 
+		// sftp
 		final SftpSubsystemFactory factory = new SftpSubsystemFactory();
 		list.add(factory);
-
 		factory.addSftpEventListener(this);
 
-
 		return list;
+	}
+
+	// ----- nested classes -----
+	private class ConsoleCommandFactory implements NamedFactory<org.apache.sshd.server.Command> {
+
+		private ConsoleMode mode = null;
+
+		public ConsoleCommandFactory(final ConsoleMode mode) {
+			this.mode = mode;
+		}
+
+		@Override
+		public org.apache.sshd.server.Command create() {
+			return new StructrConsoleCommand(securityContext);
+		}
+
+		@Override
+		public String getName() {
+			return mode.name();
+		}
 	}
 }

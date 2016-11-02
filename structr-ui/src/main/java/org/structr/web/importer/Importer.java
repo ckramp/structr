@@ -43,7 +43,6 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.text.WordUtils;
-import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.config.ConnectionConfig;
@@ -57,6 +56,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
+import org.jsoup.parser.Parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.common.CaseHelper;
@@ -76,11 +76,11 @@ import org.structr.core.property.BooleanProperty;
 import org.structr.core.property.PropertyKey;
 import org.structr.core.property.StringProperty;
 import org.structr.dynamic.File;
+import org.structr.rest.common.HttpHelper;
 import org.structr.schema.ConfigurationProvider;
 import org.structr.schema.importer.GraphGistImporter;
 import org.structr.schema.importer.SchemaJsonImporter;
 import org.structr.web.common.FileHelper;
-import org.structr.web.common.HttpHelper;
 import org.structr.web.common.ImageHelper;
 import org.structr.web.diff.CreateOperation;
 import org.structr.web.diff.DeleteOperation;
@@ -96,6 +96,7 @@ import org.structr.web.entity.dom.Content;
 import org.structr.web.entity.dom.DOMElement;
 import org.structr.web.entity.dom.DOMNode;
 import org.structr.web.entity.dom.Page;
+import org.structr.web.entity.dom.Template;
 import org.structr.web.entity.html.Body;
 import org.structr.web.entity.html.Head;
 
@@ -217,11 +218,36 @@ public class Importer {
 
 			if (fragment) {
 
-				parsedDocument = Jsoup.parseBodyFragment(code);
+				if (isDeployment) {
+
+					final List<Node> nodeList = Parser.parseXmlFragment(code, "");
+					parsedDocument            = Document.createShell("");
+					final Element body        = parsedDocument.body();
+					final Node[] nodes        = nodeList.toArray(new Node[nodeList.size()]);
+
+					for (int i = nodes.length - 1; i > 0; i--) {
+					    nodes[i].remove();
+					}
+
+					for (Node node : nodes) {
+					    body.appendChild(node);
+					}
+
+				} else {
+
+					parsedDocument = Jsoup.parseBodyFragment(code);
+				}
 
 			} else {
 
-				parsedDocument = Jsoup.parse(code);
+				if (isDeployment) {
+
+					parsedDocument = Jsoup.parse(code, "", Parser.xmlParser());
+
+				} else {
+
+					parsedDocument = Jsoup.parse(code);
+				}
 
 			}
 
@@ -281,7 +307,8 @@ public class Importer {
 			return createChildNodes(body, null, page);
 		}
 
-		return null;
+		// fallback, no head no body => document is parent
+		return createChildNodes(parsedDocument, null, page);
 	}
 
 	public DOMNode createChildNodes(final DOMNode parent, final Page page) throws FrameworkException {
@@ -302,7 +329,12 @@ public class Importer {
 	public void importDataComments() throws FrameworkException {
 
 		// try to import graph gist from comments
-		GraphGistImporter.importCypher(GraphGistImporter.extractSources(new ByteArrayInputStream(commentSource.toString().getBytes())));
+		final GraphGistImporter importer = app.command(GraphGistImporter.class);
+		final byte[] data                = commentSource.toString().getBytes();
+		final ByteArrayInputStream bis   = new ByteArrayInputStream(data);
+		final List<String> sources       = importer.extractSources(bis);
+
+		importer.importCypher(sources);
 	}
 
 	public void setIsDeployment(final boolean isDeployment) {
@@ -583,7 +615,7 @@ public class Importer {
 				if (type.equals("#text")) {
 
 					tag = "";
-					content = ((TextNode) node).text();
+					content = ((TextNode) node).getWholeText();
 
 					// Add content node for whitespace within <p> elements only
 					if (!("p".equals(startNode.nodeName().toLowerCase())) && StringUtils.isWhitespace(content)) {
@@ -617,12 +649,14 @@ public class Importer {
 				final String src = node.attr("src");
 				if (src != null) {
 
-					final DOMNode component = Importer.findSharedComponentByName(src);
-					if (component != null) {
+					final DOMNode template = Importer.findTemplateByName(src);
+					if (template != null) {
 
-						newNode = (DOMNode) component.cloneNode(false);
-						newNode.setProperty(DOMNode.sharedComponent, component);
-						newNode.setProperty(DOMNode.ownerDocument, page);
+						newNode = template;
+
+						if (page != null) {
+							newNode.setProperty(DOMNode.ownerDocument, page);
+						}
 
 					} else {
 
@@ -634,6 +668,28 @@ public class Importer {
 					logger.warn("Invalid template definition, missing src attribute!");
 				}
 
+			} else if ("structr:component".equals(tag)) {
+
+				final String src = node.attr("src");
+				if (src != null) {
+
+					final DOMNode component = Importer.findSharedComponentByName(src);
+					if (component != null) {
+
+						newNode = (DOMNode) component.cloneNode(false);
+						newNode.setProperty(DOMNode.sharedComponent, component);
+						newNode.setProperty(DOMNode.ownerDocument, page);
+
+					} else {
+
+						logger.warn("Unable to find shared component {} - ignored!", src);
+					}
+
+				} else {
+
+					logger.warn("Invalid component definition, missing src attribute!");
+				}
+
 
 			} else {
 
@@ -643,7 +699,7 @@ public class Importer {
 			if (newNode != null) {
 
 				// save root element for later use
-				if (rootElement == null) {
+				if (rootElement == null && !(newNode instanceof org.structr.web.entity.dom.Comment)) {
 					rootElement = newNode;
 				}
 
@@ -797,8 +853,10 @@ public class Importer {
 
 						if (lastCommentNode != null) {
 
-							// remove comment node
-							parent.removeChild(lastCommentNode);
+							// remove comment node from parent (if there is a parent)
+							if (parent != null) {
+								parent.removeChild(lastCommentNode);
+							}
 							app.delete(lastCommentNode);
 						}
 					}
@@ -1077,7 +1135,7 @@ public class Importer {
 
 		final URI     url = URI.create(address);
 		final HttpGet req = new HttpGet(url);
-		
+
 		req.addHeader("User-Agent", "curl/7.35.0");
 
 		logger.info("Downloading from {}", address);
@@ -1086,11 +1144,11 @@ public class Importer {
 			.setDefaultConnectionConfig(ConnectionConfig.DEFAULT)
 			.setUserAgent("curl/7.35.0")
 			.build();
-		
+
 		final CloseableHttpResponse resp = client.execute(req);
 
 		final int statusCode = resp.getStatusLine().getStatusCode();
-		
+
 		if (statusCode == 200) {
 
 			try (final InputStream is = resp.getEntity().getContent()) {
@@ -1109,7 +1167,7 @@ public class Importer {
 			if (content.charAt(0) == 65279) {
 				content = content.substring(1);
 			}
-			
+
 			System.out.println("Response body: " + content);
 			logger.warn("Unable to create file from URI {}: status code was {}", new Object[]{ address, statusCode });
 		}
@@ -1123,6 +1181,20 @@ public class Importer {
 			if (n.getProperty(DOMNode.parent) == null && n.getOwnerDocumentAsSuperUser() == null) {
 				continue;
 			}
+
+			// IGNORE everything that REFERENCES a shared component!
+			if (n.getProperty(DOMNode.sharedComponent) == null) {
+
+				return n;
+			}
+		}
+
+		return null;
+	}
+
+	public static DOMNode findTemplateByName(final String name) throws FrameworkException {
+
+		for (final DOMNode n : StructrApp.getInstance().nodeQuery(Template.class).andName(name).getAsList()) {
 
 			// IGNORE everything that REFERENCES a shared component!
 			if (n.getProperty(DOMNode.sharedComponent) == null) {

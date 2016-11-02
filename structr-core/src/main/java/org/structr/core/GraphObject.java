@@ -142,7 +142,7 @@ public interface GraphObject {
 	 */
 	default void setProperties(final SecurityContext securityContext, final PropertyMap properties) throws FrameworkException {
 
-		final CreationContainer container = new CreationContainer();
+		final CreationContainer container = new CreationContainer(this);
 
 		for (final Entry<PropertyKey, Object> attr : properties.entrySet()) {
 
@@ -152,21 +152,29 @@ public interface GraphObject {
 
 			if (value != null && AbstractCypherIndex.INDEXABLE.contains(valueType)) {
 
-				// bulk set possible, store in container
-				key.setProperty(securityContext, container, value);
+				final Object oldValue = getProperty(key);
+				if (oldValue != value) {
 
-				if (isNode()) {
+					// bulk set possible, store in container
+					key.setProperty(securityContext, container, value);
 
-					TransactionCommand.nodeModified(securityContext.getCachedUser(), (AbstractNode)this, key, getProperty(key), value);
+					if (isNode()) {
 
-				} else if (isRelationship()) {
+						TransactionCommand.nodeModified(securityContext.getCachedUser(), (AbstractNode)this, key, getProperty(key), value);
 
-					TransactionCommand.relationshipModified(securityContext.getCachedUser(), (AbstractRelationship)this, key, getProperty(key), value);
+					} else if (isRelationship()) {
+
+						TransactionCommand.relationshipModified(securityContext.getCachedUser(), (AbstractRelationship)this, key, getProperty(key), value);
+					}
 				}
 
 			} else {
 
 				// bulk set NOT possible, set on entity
+				if (key.isSystemInternal()) {
+					unlockSystemPropertiesOnce();
+				}
+
 				setProperty(key, value);
 			}
 		}

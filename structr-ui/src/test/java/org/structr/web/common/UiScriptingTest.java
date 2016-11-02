@@ -19,13 +19,15 @@
 package org.structr.web.common;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 import java.security.Principal;
 import java.util.Collection;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
@@ -47,6 +49,8 @@ import javax.servlet.http.Part;
 import static junit.framework.TestCase.assertTrue;
 import static junit.framework.TestCase.fail;
 import org.apache.commons.lang.StringUtils;
+import static org.junit.Assert.assertEquals;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.common.error.FrameworkException;
@@ -65,6 +69,7 @@ public class UiScriptingTest extends StructrUiTest {
 
 	private static final Logger logger = LoggerFactory.getLogger(UiScriptingTest.class.getName());
 
+	@Test
 	public void testScripting() {
 
 		NodeInterface detailsDataObject = null;
@@ -139,6 +144,24 @@ public class UiScriptingTest extends StructrUiTest {
 		}
 	}
 
+	@Test
+	public void testCharset() {
+
+		System.out.println("######### Charset settings ##############");
+		System.out.println("Default Charset=" + Charset.defaultCharset());
+		System.out.println("file.encoding=" + System.getProperty("file.encoding"));
+		System.out.println("Default Charset=" + Charset.defaultCharset());
+		System.out.println("Default Charset in Use=" + getEncodingInUse());
+		System.out.println("This should look like the umlauts of 'a', 'o', 'u' and 'ss': äöüß");
+		System.out.println("#########################################");
+
+	}
+
+	private String getEncodingInUse() {
+		OutputStreamWriter writer = new OutputStreamWriter(new ByteArrayOutputStream());
+		return writer.getEncoding();
+	}
+
 	private void test(final DOMNode p, final DOMNode text, final String content, final String expected, final RenderContext context) throws FrameworkException {
 
 		text.setTextContent(content);
@@ -164,18 +187,6 @@ public class UiScriptingTest extends StructrUiTest {
 		}
 
 		return buf.toString();
-	}
-
-	@Override
-	public void setUp() throws Exception {
-
-		final Map<String, Object> config = new HashMap<>();
-
-		// set scripting engine to rhino
-		config.put("scripting.engine", "rhino");
-
-		// call super with additional config
-		super.setUp(config);
 	}
 
 	public class RequestMockUp implements HttpServletRequest {

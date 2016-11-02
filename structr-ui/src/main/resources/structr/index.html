@@ -7,6 +7,7 @@
 		<meta name="viewport" content="width=1024, user-scalable=yes" />
 		<link rel="stylesheet" type="text/css" media="screen" href="css/lib/jquery-ui-1.10.3.custom.min.css" >
 		<link rel="stylesheet" type="text/css" media="screen" href="css/lib/jquery.dataTables.min.css" >
+		<link rel="stylesheet" type="text/css" media="screen" href="css/lib/jquery.terminal-0.11.11.min.css" >
 		<link rel="stylesheet" type="text/css" media="screen" href="css/lib/fixedHeader.jqueryui.min.css" >
 		<link rel="stylesheet" type="text/css" media="screen" href="css/lib/chosen.min.css" >
 		<link rel="stylesheet" type="text/css" media="screen" href="css/lib/jstree-3.2.1.min.css" >
@@ -31,6 +32,7 @@
 		<script src="js/lib/jquery-ui-timepicker-addon.js"></script>
 		<script src="js/lib/jquery-ui-idrop.js"></script>
 		<script src="js/lib/jquery.json-2.3.min.js"></script>
+		<script src="js/lib/jquery.terminal-0.11.11.min.js"></script>
 		<script src="js/lib/jquery.mousewheel.js"></script>
 		<script src="js/lib/jquery.hoverIntent.min.js"></script>
 		<script src="js/lib/jquery.caret.min.js"></script>
@@ -89,9 +91,9 @@
 		<script src="js/model.js"></script>
 		<script src="js/speech.js"></script>
 		<script src="js/localization.js"></script>
-		<!--<script src="js/crawler.js"></script>-->
+		<script src="js/crawler.js"></script>
 		<script src="js/minification.js"></script>
-		<script src="js/find_duplicates.js"></script>
+		<script src="js/find-duplicates.js"></script>
 		<script src="js/init.js"></script>
 	</head>
 	<body>
@@ -108,19 +110,21 @@
 				<ul>
 					<li><a id="dashboard_" href="#dashboard" data-activate-module="dashboard">Dashboard</a></li>
 					<li><a id="graph_" href="#graph" data-activate-module="graph">Graph</a></li>
-					<li style="display: none" class="module-dependend" data-structr-module="contents"><a id="contents_" href="#contents" data-activate-module="contents">Contents</a></li>
+					<li><a id="contents_" href="#contents" data-activate-module="contents">Contents</a></li>
 					<li><a id="pages_" href="#pages" data-activate-module="pages">Pages</a></li>
 					<li><a id="files_" href="#files" data-activate-module="files">Files</a></li>
 					<li><a id="security_" href="#security" data-activate-module="security">Security</a></li>
 					<li><a id="schema_" href="#schema" data-activate-module="schema">Schema</a></li>
 					<li><a id="crud_" href="#crud" data-activate-module="crud">Data</a></li>
-					<li style="display: none" class="module-dependend" data-structr-module="crawler"><a id="crawler_" href="#crawler" data-activate-module="crawler">Crawler</a></li>
+					<li class="module-dependend" data-structr-module="crawler"><a id="crawler_" href="#crawler" data-activate-module="crawler">Crawler</a></li>
 					<li><a id="localization_" href="#localization" data-activate-module="localization">Localization</a></li>
 					<li><a id="logout_" href="#">Login</a></li>
 				</ul>
 			</div>
 			<div id="main-help"><a target="_blank" href="http://docs.structr.org"><img alt="Help" src="icon/information.png"></a></div>
 		</div>
+
+		<div class="hidden" id="structr-console"></div>
 
 		<div id="main">
 			<!--<div id="ajaxLoader"><img src="img/ajax-loader.gif"></div>-->

@@ -178,64 +178,47 @@ public class Content extends DOMNode implements Text {
 			}
 
 		});
-//		contentConverters.put("text/plain", new Adapter<String, String>() {
-//
-//			@Override
-//			public String adapt(String s) throws FrameworkException {
-//
-//				return StringEscapeUtils.escapeHtml(s);
-//
-//			}
-//
-//		});
-
 	}
 
 	@Override
 	public boolean onModification(SecurityContext securityContext, ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
 
-		for (final Sync rel : getOutgoingRelationships(Sync.class)) {
+		if (super.onModification(securityContext, errorBuffer, modificationQueue)) {
 
-			final Content syncedNode = (Content) rel.getTargetNode();
-			final PropertyMap map    = new PropertyMap();
+			for (final Sync rel : getOutgoingRelationships(Sync.class)) {
 
-			// sync content only
-			map.put(content, getProperty(content));
-			map.put(contentType, getProperty(contentType));
-			map.put(name, getProperty(name));
+				final Content syncedNode = (Content) rel.getTargetNode();
+				final PropertyMap map    = new PropertyMap();
 
-			syncedNode.setProperties(securityContext, map);
-		}
-
-                final Sync rel = getIncomingRelationship(Sync.class);
-                if (rel != null) {
-
-			final Content otherNode = (Content) rel.getSourceNode();
-			if (otherNode != null) {
-
-				final PropertyMap map = new PropertyMap();
-
-				// sync both ways
+				// sync content only
 				map.put(content, getProperty(content));
 				map.put(contentType, getProperty(contentType));
 				map.put(name, getProperty(name));
 
-				otherNode.setProperties(otherNode.getSecurityContext(), map);
-                	}
-                }
+				syncedNode.setProperties(securityContext, map);
+			}
 
-                try {
+			final Sync rel = getIncomingRelationship(Sync.class);
+			if (rel != null) {
 
-			increasePageVersion();
+				final Content otherNode = (Content) rel.getSourceNode();
+				if (otherNode != null) {
 
-		} catch (FrameworkException ex) {
+					final PropertyMap map = new PropertyMap();
 
-			logger.warn("Updating page version failed", ex);
+					// sync both ways
+					map.put(content, getProperty(content));
+					map.put(contentType, getProperty(contentType));
+					map.put(name, getProperty(name));
 
+					otherNode.setProperties(otherNode.getSecurityContext(), map);
+				}
+			}
+
+			return true;
 		}
 
-		return true;
-
+		return false;
 	}
 
 	@Override
@@ -295,8 +278,13 @@ public class Content extends DOMNode implements Text {
 			final EditMode edit = renderContext.getEditMode(securityContext.getUser(false));
 			if (EditMode.DEPLOYMENT.equals(edit)) {
 
+				final AsyncBuffer buf = renderContext.getBuffer();
+
+				// output ownership comments
+				renderDeploymentExportComments(buf, true);
+
 				// EditMode "deployment" means "output raw content, do not interpret in any way
-				renderContext.getBuffer().append(escapeForHtmlAttributes(getProperty(Content.content)));
+				buf.append(getProperty(Content.content));
 
 				return;
 			}
@@ -325,18 +313,16 @@ public class Content extends DOMNode implements Text {
 				if ("text/javascript".equals(_contentType)) {
 
 					// Javascript will only be given some local vars
-					// TODO: Is this neccessary?
 					out.append("// data-structr-type='").append(getType()).append("'\n// data-structr-id='").append(id).append("'\n");
 
 				} else if ("text/css".equals(_contentType)) {
 
 					// CSS will only be given some local vars
-					// TODO: Is this neccessary?
 					out.append("/* data-structr-type='").append(getType()).append("'*/\n/* data-structr-id='").append(id).append("'*/\n");
 
 				} else {
 
-	//				// In edit mode, add an artificial comment tag around content nodes within body to make them editable
+					// In edit mode, add an artificial comment tag around content nodes within body to make them editable
 					final String cleanedContent = StringUtils.remove(StringUtils.remove(org.apache.commons.lang3.StringUtils.replace(getProperty(Content.content), "\n", "\\\\n"), "<!--"), "-->");
 					out.append("<!--data-structr-id=\"".concat(id)
 						.concat("\" data-structr-raw-value=\"").concat(escapeForHtmlAttributes(cleanedContent)).concat("\"-->"));

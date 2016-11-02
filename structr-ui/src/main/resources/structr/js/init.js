@@ -21,7 +21,7 @@ var sessionId, user;
 var lastMenuEntry, activeTab, menuBlocked;
 var dmp;
 var editorCursor, ignoreKeyUp;
-var dialog, isMax = false;
+var dialog, isMax = false, terminal, consoleDisabled = true;
 var dialogBox, dialogMsg, dialogBtn, dialogTitle, dialogMeta, dialogText, dialogCancelButton, dialogSaveButton, saveAndClose, loginButton, loginBox, dialogCloseButton;
 var dialogId;
 var pagerType = {}, page = {}, pageSize = {}, sortKey = {}, sortOrder = {}, pagerFilters = {};
@@ -57,7 +57,7 @@ $(function() {
 	dialogBtn          = $('.dialogBtn', dialogBox);
 	dialogTitle        = $('.dialogTitle', dialogBox);
 	dialogMeta         = $('.dialogMeta', dialogBox);
-	dialogCancelButton = $('.closeButton');
+	dialogCancelButton = $('.closeButton', dialogBox);
 	dialogSaveButton   = $('.save', dialogBox);
 	loginButton        = $('#loginButton');
 
@@ -171,6 +171,9 @@ $(function() {
 				dialogSaveButton.click();
 			}
 		}
+		if (k === 67 && altKey && ctrlKey) {
+			Structr.toggleConsole();
+		}
 		//console.log(e.which, shiftKey, ctrlKey, altKey, eKey, cmdKey);
 	});
 
@@ -252,7 +255,8 @@ var _Icons = {
 	minification_trigger_icon: 'icon/briefcase.png',
 	search_icon: 'icon/zoom.png',
 	star_icon: 'icon/star.png',
-	star_delete_icon: 'icon/star_delete.png'
+	star_delete_icon: 'icon/star_delete.png',
+	image_icon: 'icon/image.png'
 };
 
 var Structr = {
@@ -317,6 +321,7 @@ var Structr = {
 			}
 		}
 		hideLoadingSpinner();
+		Structr.initConsole();
 	},
 	updateUsername:function(name) {
 		if (name !== user) {
@@ -386,6 +391,11 @@ var Structr = {
 		});
 	},
 	doLogout: function(text) {
+		consoleDisabled = true;
+		Command.console('clear');
+		Command.console('exit');
+		terminal.clear();
+		$('#structr-console').hide();
 		Structr.saveLocalStorage();
 		if (Command.logout(user)) {
 			Cookies.remove('JSESSIONID');
@@ -559,26 +569,27 @@ var Structr = {
 				dialogTitle.html(text);
 			}
 
-			if (callbackCancel) {
-				dialogCancelButton.off('click');
-				dialogCancelButton.on('click', function(e) {
-					e.stopPropagation();
-					callbackCancel();
-					dialogText.empty();
-					$.unblockUI({
-						fadeOut: 25
-
-					});
-					dialogBtn.children(':not(.closeButton)').remove();
-					//dialogSaveButton.remove();
-					//$('#saveProperties').remove();
-					if (searchField)
-						searchField.focus();
-
-					LSWrapper.removeItem(dialogDataKey);
+			dialogCancelButton.off('click').on('click', function(e) {
+				e.stopPropagation();
+				dialogText.empty();
+				$.unblockUI({
+					fadeOut: 25
 
 				});
-			}
+				dialogBtn.children(':not(.closeButton)').remove();
+				//dialogSaveButton.remove();
+				//$('#saveProperties').remove();
+				if (searchField)
+					searchField.focus();
+
+				LSWrapper.removeItem(dialogDataKey);
+
+				if (callbackCancel) {
+					window.setTimeout(function() {
+						callbackCancel();
+					}, 100);
+				}
+			});
 
 			$.blockUI.defaults.overlayCSS.opacity = .4;
 			$.blockUI.defaults.applyPlatformOpacityRules = false;
@@ -984,7 +995,7 @@ var Structr = {
 	openLeftSlideOut: function(slideout, tab, activeTabKey, callback, dragCallback) {
 		var s = $(slideout);
 		var storedLeftSlideoutWidth = LSWrapper.getItem(leftSlideoutWidthKey);
-		var psw = storedLeftSlideoutWidth ? parseInt(storedLeftSlideoutWidth) : (pagesSlideout.width() + 12);
+		var psw = storedLeftSlideoutWidth ? parseInt(storedLeftSlideoutWidth) : (s.width() + 12);
 
 		var t = $(tab);
 		t.addClass('active');
@@ -1013,6 +1024,7 @@ var Structr = {
 				$('.node.page', s).width(w - 25);
 
 				if (dragCallback) {
+					LSWrapper.setItem(leftSlideoutWidthKey, s.width());
 					dragCallback({sw: (sw - oldLsw)});
 				}
 			},
@@ -1301,14 +1313,14 @@ var Structr = {
 		$('.module-dependend').each(function(idx, element) {
 			var el = $(element);
 			var module = el.data('structr-module');
-			if (module !== 'crawler' && Structr.isModulePresent(module)) {
+			if (Structr.isModulePresent(module)) {
 				if (!el.is(':visible')) el.show();
 			} else {
 				el.hide();
 			}
 		});
 	},
-	isModulePresent:function(moduleName) {
+	isModulePresent: function(moduleName) {
 		return Structr.activeModules[moduleName] !== undefined;
 	},
 	guardExecution:function (callbackToGuard) {
@@ -1326,6 +1338,117 @@ var Structr = {
 		};
 
 		return guardedFunction;
+	},
+	initConsole: function() {
+		consoleDisabled = false;
+		var greetings =   '        _                          _         \n'
+						+ ' ____  | |_   ___   _   _   ____  | |_   ___ \n'
+						+ '(  __| | __| |  _| | | | | |  __| | __| |  _|\n'
+						+ ' \\ \\   | |   | |   | | | | | |    | |   | |  \n'
+						+ ' _\\ \\  | |_  | |   | |_| | | |__  | |_  | |  \n'
+						+ '|____) |___| |_|   |_____| |____| |___| |_|  \n\n';
+
+		// Get initial mode and prompt from backend
+		Command.console('Console.getMode()', function(data) {
+
+			var message = data.message;
+			var mode = data.data.mode;
+			var prompt = data.data.prompt;
+			var versionInfo = data.data.versionInfo;
+			//console.log(message, mode, prompt, versionInfo);
+
+			var consoleEl = $('#structr-console');
+			terminal = consoleEl.terminal(function(command, term) {
+				if (command !== '') {
+					try {
+
+						Command.console(command, function(data) {
+							var prompt = data.data.prompt;
+							if (prompt) {
+								term.set_prompt(prompt + '> ');
+							}
+
+							var result = data.message;
+							if (result !== undefined) {
+								term.echo(new String(result));
+							}
+						});
+
+					} catch (e) {
+						term.error(new String(e));
+					}
+				} else {
+					term.echo('');
+				}
+			}, {
+				greetings: greetings + 'Welcome to Structr (' + versionInfo + '). Use <Shift>+<Tab> to switch modes.',
+				name: 'structr-console',
+				height: 470,
+				prompt: prompt + '> ',
+				keydown: function(e) {
+					if (e.which === 17) {
+						return true;
+					}
+				},
+				completion: function(term, lineToBeCompleted, callback) {
+
+					if (shiftKey) {
+
+						switch (term.consoleMode) {
+
+							case 'REST':
+								mode = 'JavaScript';
+								break;
+
+							case 'JavaScript':
+								mode = 'StructrScript';
+								break;
+
+							case 'StructrScript':
+								mode = 'Cypher';
+								break;
+
+							case 'Cypher':
+								mode = 'AdminShell';
+								break;
+
+							case 'AdminShell':
+								mode = 'REST';
+								break;
+						}
+
+						var line = 'Console.setMode("' + mode + '")';
+						term.consoleMode = mode;
+
+						Command.console(line, function(data) {
+							var prompt = data.data.prompt;
+							if (prompt) {
+								term.set_prompt(prompt + '> ');
+							}
+							var result = data.message;
+							if (result !== undefined) {
+								term.echo(new String(result));
+							}
+						});
+
+					} else {
+						Command.console(lineToBeCompleted, function(data) {
+							var commands = JSON.parse(data.data.commands);
+							callback(commands);
+						}, true);
+					}
+				}
+			});
+			terminal.consoleMode = mode;
+			terminal.echo(message);
+		});
+	},
+	toggleConsole: function() {
+		if (consoleDisabled) {
+			return;
+		}
+		$('#structr-console').slideToggle('fast');
+		terminal.focus(true);
 	}
 };
 

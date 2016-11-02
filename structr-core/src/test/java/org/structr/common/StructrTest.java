@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -30,15 +31,19 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import junit.framework.TestCase;
 import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.AfterClass;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.structr.api.DatabaseService;
 import org.structr.api.config.Structr;
 import org.structr.common.error.FrameworkException;
 import org.structr.core.Services;
@@ -48,50 +53,116 @@ import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.GenericNode;
 import org.structr.core.entity.Principal;
 import org.structr.core.entity.Relation;
-import org.structr.core.graph.GraphDatabaseCommand;
 import org.structr.core.graph.NodeAttribute;
 import org.structr.core.graph.NodeInterface;
 import org.structr.core.graph.Tx;
 import org.structr.core.property.PropertyMap;
 import org.structr.module.JarConfigurationProvider;
 
-//~--- classes ----------------------------------------------------------------
 /**
- * Base class for all structr tests
- *
- * All tests are executed in superuser context
- *
  *
  */
-public class StructrTest extends TestCase {
+public class StructrTest {
 
 	private static final Logger logger = LoggerFactory.getLogger(StructrTest.class.getName());
 
-	//~--- fields ---------------------------------------------------------
-	protected GraphDatabaseCommand graphDbCommand = null;
-	protected SecurityContext securityContext = null;
-	protected String basePath = null;
-	protected App app = null;
+	protected static SecurityContext securityContext = null;
+	protected static String basePath                 = null;
+	protected static App app                         = null;
 
 	@Rule
 	public TestRule watcher = new TestWatcher() {
+
 		@Override
 		protected void starting(Description description) {
-			System.out.println("Starting test: " + description.getMethodName());
+
+			System.out.println("######################################################################################");
+			System.out.println("# Starting " + getClass().getSimpleName() + "#" + description.getMethodName());
+			System.out.println("######################################################################################");
+		}
+
+		@Override
+		protected void finished(Description description) {
+
+			System.out.println("######################################################################################");
+			System.out.println("# Finished " + getClass().getSimpleName() + "#" + description.getMethodName());
+			System.out.println("######################################################################################");
 		}
 	};
 
-	//~--- methods --------------------------------------------------------
+	@After
+	@Before
+	public void cleanDatabase() {
 
-	public void test00DbAvailable() {
+		try (final Tx tx = app.tx()) {
 
-		DatabaseService graphDb = graphDbCommand.execute();
+			for (final NodeInterface node : app.nodeQuery().getAsList()) {
+				app.delete(node);
+			}
 
-		assertTrue(graphDb != null);
+			// delete remaining nodes without UUIDs etc.
+			app.cypher("MATCH (n)-[r]-(m) DELETE n, r, m", Collections.emptyMap());
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+
+			 logger.error("Exception while trying to clean database: {}", fex);
+		}
 	}
 
-	@Override
-	protected void tearDown() throws Exception {
+	@BeforeClass
+	public static void startSystem() {
+		startSystem(Collections.emptyMap());
+	}
+
+	public static void startSystem(final Map<String, Object> additionalConfig) {
+
+		final Properties config = Services.getBaseConfiguration();
+		final Date now          = new Date();
+		final long timestamp    = now.getTime();
+
+		basePath = "/tmp/structr-test-" + timestamp;
+
+		// enable "just testing" flag to avoid JAR resource scanning
+		config.setProperty(Services.TESTING, "true");
+
+		config.setProperty(Services.CONFIGURED_SERVICES, "NodeService LogService SchemaService");
+		config.setProperty(Services.CONFIGURATION, JarConfigurationProvider.class.getName());
+		config.setProperty(Structr.DATABASE_CONNECTION_URL, Structr.TEST_DATABASE_URL);
+		config.setProperty(Services.TMP_PATH, "/tmp/");
+		config.setProperty(Services.BASE_PATH, basePath);
+		config.setProperty(Structr.DATABASE_PATH, basePath + "/db");
+		config.setProperty(Structr.RELATIONSHIP_CACHE_SIZE, "1000");
+		config.setProperty(Structr.NODE_CACHE_SIZE, "1000");
+		config.setProperty(Services.FILES_PATH, basePath + "/files");
+		config.setProperty(Services.LOG_DATABASE_PATH, basePath + "/logDb.dat");
+		config.setProperty(Services.TCP_PORT, (System.getProperty("tcpPort") != null ? System.getProperty("tcpPort") : "13465"));
+		config.setProperty(Services.UDP_PORT, (System.getProperty("udpPort") != null ? System.getProperty("udpPort") : "13466"));
+		config.setProperty(Services.SUPERUSER_USERNAME, "superadmin");
+		config.setProperty(Services.SUPERUSER_PASSWORD, "sehrgeheim");
+
+		if (additionalConfig != null) {
+			config.putAll(additionalConfig);
+		}
+
+		final Services services = Services.getInstanceForTesting(config);
+
+		// wait for service layer to be initialized
+		do {
+			try {
+				Thread.sleep(100);
+			} catch (Throwable t) {
+			}
+
+		} while (!services.isInitialized());
+
+		securityContext = SecurityContext.getSuperUserInstance();
+		app = StructrApp.getInstance(securityContext);
+	}
+
+	@AfterClass
+	public static void stopSystem() {
 
 		Services.getInstance().shutdown();
 
@@ -109,13 +180,6 @@ public class StructrTest extends TestCase {
 		} catch (Throwable t) {
 			logger.warn("", t);
 		}
-
-		super.tearDown();
-
-		System.out.println("######################################################################################");
-		System.out.println("# " + getClass().getSimpleName() + "#" + getName() + " finished.");
-		System.out.println("######################################################################################\n");
-
 	}
 
 	/**
@@ -324,7 +388,6 @@ public class StructrTest extends TestCase {
 		return map;
 	}
 
-	//~--- get methods ----------------------------------------------------
 	/**
 	 * Get classes in given package and subpackages, accessible from the
 	 * context class loader
@@ -361,58 +424,5 @@ public class StructrTest extends TestCase {
 
 		return classList;
 
-	}
-
-	@Override
-	protected void setUp() throws Exception {
-		setUp(null);
-	}
-
-	protected void setUp(final Map<String, Object> additionalConfig) {
-
-		System.out.println("\n######################################################################################");
-		System.out.println("# Starting " + getClass().getSimpleName() + "#" + getName());
-		System.out.println("######################################################################################");
-
-		final Properties config = Services.getBaseConfiguration();
-		final Date now = new Date();
-		final long timestamp = now.getTime();
-
-		basePath = "/tmp/structr-test-" + timestamp;
-
-		config.setProperty(Services.CONFIGURED_SERVICES, "NodeService LogService SchemaService");
-		config.setProperty(Services.CONFIGURATION, JarConfigurationProvider.class.getName());
-		config.setProperty(Structr.DATABASE_CONNECTION_URL, Structr.TEST_DATABASE_URL);
-		config.setProperty(Services.TMP_PATH, "/tmp/");
-		config.setProperty(Services.BASE_PATH, basePath);
-		config.setProperty(Structr.DATABASE_PATH, basePath + "/db");
-		config.setProperty(Structr.RELATIONSHIP_CACHE_SIZE, "1000");
-		config.setProperty(Structr.NODE_CACHE_SIZE, "1000");
-		config.setProperty(Services.FILES_PATH, basePath + "/files");
-		config.setProperty(Services.LOG_DATABASE_PATH, basePath + "/logDb.dat");
-		config.setProperty(Services.TCP_PORT, (System.getProperty("tcpPort") != null ? System.getProperty("tcpPort") : "13465"));
-		config.setProperty(Services.UDP_PORT, (System.getProperty("udpPort") != null ? System.getProperty("udpPort") : "13466"));
-		config.setProperty(Services.SUPERUSER_USERNAME, "superadmin");
-		config.setProperty(Services.SUPERUSER_PASSWORD, "sehrgeheim");
-
-		if (additionalConfig != null) {
-			config.putAll(additionalConfig);
-		}
-
-		final Services services = Services.getInstanceForTesting(config);
-
-		// wait for service layer to be initialized
-		do {
-			try {
-				Thread.sleep(100);
-			} catch (Throwable t) {
-			}
-
-		} while (!services.isInitialized());
-
-		securityContext = SecurityContext.getSuperUserInstance();
-		app = StructrApp.getInstance(securityContext);
-
-		graphDbCommand = app.command(GraphDatabaseCommand.class);
 	}
 }

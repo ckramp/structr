@@ -21,6 +21,8 @@ package org.structr.rest.resource;
 import com.jayway.restassured.RestAssured;
 import com.jayway.restassured.filter.log.ResponseLoggingFilter;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.fail;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.common.error.FrameworkException;
@@ -40,6 +42,7 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 
 	private static final Logger logger = LoggerFactory.getLogger(TypeResourceRelationshipTest.class.getName());
 
+	@Test
 	public void testCreateRelationship() {
 
 		String sourceNodeId = null;
@@ -82,7 +85,7 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 				.get(concat("/TestTwo/", sourceNodeId));
 
 		/* Create relationship using the TypeResource.
-		
+
 		 * The relation class is TwoOneOneToMany: (:TestTwo) -1-[:OWNS]-*-> (:TestOne)
 		 */
 		RestAssured
@@ -122,29 +125,10 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 				.body("result_count",       equalTo(1))
 			.when()
 				.get("/TwoOneOneToMany");
-
-//		// Check results
-//		RestAssured
-//			.given()
-//				.contentType("application/json; charset=UTF-8")
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(200))
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(201))
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(400))
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(401))
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(403))
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(404))
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(422))
-//				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(500))
-//			.expect()
-//				.statusCode(200)
-//				.body("result_count",       equalTo(1))
-//				.body("result",		    isEntity(TestTwo.class))
-//			.when()
-//				.get(concat("/TestTwo/", sourceNodeId));
-
 	}
 
-	
+
+	@Test
 	public void testCardinalityOneToMany() {
 
 		String sourceNodeId = null;
@@ -230,6 +214,7 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 
 	}
 
+	@Test
 	public void testCardinalityOneToOne() {
 
 		String sourceNodeId = null;
@@ -314,7 +299,8 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 				.get("/FourThreeOneToOne");
 
 	}
-	
+
+	@Test
 	public void testCardinalityManyToOne() {
 
 		String sourceNodeId = null;
@@ -400,6 +386,7 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 
 	}
 
+	@Test
 	public void testCardinalityOneToOneThreeNodes() {
 
 		String sourceNodeId = null;
@@ -487,7 +474,8 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 				.get("/FourThreeOneToOne");
 
 	}
-	
+
+	@Test
 	public void testCardinalityManyToOneThreeNodes() {
 
 		String sourceNodeId = null;
@@ -574,5 +562,40 @@ public class TypeResourceRelationshipTest extends StructrRestTest {
 			.when()
 				.get("/FiveOneManyToOne");
 
-	}	
+	}
+
+	@Test
+	public void testCreationOfDerivedTypeObjects() {
+
+		// Verify that the creation of derived type objects is possible
+		// using the REST resource of the base type. This is important
+		// when a user wants to create a more specific type using the
+		// base type resource URL.
+
+		createEntity("/SchemaNode", "{ name: BaseType }");
+		createEntity("/SchemaNode", "{ name: DerivedType, extendsClass: 'org.structr.dynamic.BaseType' }");
+
+		createEntity("/BaseType", "{ name: BaseType }");
+		createEntity("/BaseType", "{ name: DerivedType, type: DerivedType }");
+
+		// Check nodes exist
+		RestAssured
+			.given()
+				.contentType("application/json; charset=UTF-8")
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(200))
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(201))
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(400))
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(401))
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(403))
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(404))
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(422))
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(500))
+			.expect()
+				.statusCode(200)
+				.body("result_count",       equalTo(2))
+				.body("result[0].type",     equalTo("BaseType"))
+				.body("result[1].type",     equalTo("DerivedType"))
+			.when()
+				.get("/BaseType");
+	}
 }

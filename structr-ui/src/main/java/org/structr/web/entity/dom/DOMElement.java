@@ -21,12 +21,9 @@ package org.structr.web.entity.dom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -51,8 +48,6 @@ import org.structr.web.common.AsyncBuffer;
 import org.structr.web.common.HtmlProperty;
 import org.structr.web.common.RenderContext;
 import org.structr.web.common.RenderContext.EditMode;
-import org.structr.web.entity.LinkSource;
-import org.structr.web.entity.Linkable;
 import org.structr.web.entity.dom.relationship.DOMChildren;
 import org.structr.web.entity.html.Body;
 import org.structr.web.entity.relation.PageLink;
@@ -231,7 +226,7 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 
 			final String name = _syncedNode.getProperty(AbstractNode.name);
 
-			out.append("<structr:template src=\"");
+			out.append("<structr:component src=\"");
 			out.append(name != null ? name : _syncedNode.getUuid());
 			out.append("\"");
 
@@ -340,7 +335,7 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 				// Determine if this element's visibility flags differ from
 				// the flags of the page and render a <!-- @structr:private -->
 				// comment accordingly.
-				if (renderDeploymentExportComments(out)) {
+				if (renderDeploymentExportComments(out, false)) {
 
 					// restore indentation
 					if (depth > 0 && !avoidWhitespace()) {
@@ -358,29 +353,34 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 					renderContext.setInBody(true);
 				}
 
-				// fetch children
-				final List<DOMChildren> rels = getChildRelationships();
-				if (rels.isEmpty()) {
+				// only render children if we are not in a shared component scenario and not in deployment mode
+				if (getProperty(sharedComponent) == null || !EditMode.DEPLOYMENT.equals(editMode)) {
 
-					migrateSyncRels();
+					// fetch children
+					final List<DOMChildren> rels = getChildRelationships();
+					if (rels.isEmpty()) {
 
-					// No child relationships, maybe this node is in sync with another node
-					final DOMElement _syncedNode = (DOMElement) getProperty(sharedComponent);
-					if (_syncedNode != null) {
+						migrateSyncRels();
 
-						rels.addAll(_syncedNode.getChildRelationships());
-					}
-				}
+						// No child relationships, maybe this node is in sync with another node
+						final DOMElement _syncedNode = (DOMElement) getProperty(sharedComponent);
+						if (_syncedNode != null) {
 
-				for (final AbstractRelationship rel : rels) {
-
-					final DOMNode subNode = (DOMNode) rel.getTargetNode();
-
-					if (subNode instanceof DOMElement) {
-						anyChildNodeCreatesNewLine = (anyChildNodeCreatesNewLine || !(subNode.avoidWhitespace()));
+							rels.addAll(_syncedNode.getChildRelationships());
+						}
 					}
 
-					subNode.render(renderContext, depth + 1);
+					for (final AbstractRelationship rel : rels) {
+
+						final DOMNode subNode = (DOMNode) rel.getTargetNode();
+
+						if (subNode instanceof DOMElement) {
+							anyChildNodeCreatesNewLine = (anyChildNodeCreatesNewLine || !(subNode.avoidWhitespace()));
+						}
+
+						subNode.render(renderContext, depth + 1);
+
+					}
 
 				}
 
@@ -406,7 +406,11 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 					out.append(indent(depth, renderContext));
 				}
 
-				if (isTemplate) {
+				if (_syncedNode != null && EditMode.DEPLOYMENT.equals(editMode)) {
+
+					out.append("</structr:component>");
+
+				} else if (isTemplate) {
 
 					out.append("</structr:template>");
 
@@ -941,147 +945,5 @@ public class DOMElement extends DOMNode implements Element, NamedNodeMap {
 		}
 
 		return data;
-	}
-
-	// ----- private methods -----
-	private boolean renderDeploymentExportComments(final AsyncBuffer out) {
-
-		final Set<String> instructions = new LinkedHashSet<>();
-
-		getVisibilityInstructions(instructions);
-		getLinkableInstructions(instructions);
-
-		if (!instructions.isEmpty()) {
-
-			out.append("<!-- ");
-
-			for (final Iterator<String> it = instructions.iterator(); it.hasNext();) {
-
-				final String instruction = it.next();
-
-				out.append(instruction);
-
-				if (it.hasNext()) {
-					out.append(", ");
-				}
-			}
-
-			out.append(" -->");
-
-			return true;
-
-		} else {
-
-			return false;
-		}
-	}
-
-	private void getLinkableInstructions(final Set<String> instructions) {
-
-		if (this instanceof LinkSource) {
-
-			final LinkSource linkSourceElement = (LinkSource)this;
-			final Linkable linkable            = linkSourceElement.getProperty(LinkSource.linkable);
-
-			if (linkable != null) {
-
-				final String path = linkable.getPath();
-				if (path != null) {
-
-					instructions.add("@structr:link(" + path + ")");
-
-				} else {
-
-					logger.warn("Cannot export linkable relationship, no path.");
-				}
-			}
-		}
-	}
-
-	private void getVisibilityInstructions(final Set<String> instructions) {
-
-		final Page _ownerDocument       = (Page)getOwnerDocument();
-		final boolean pagePublic        = _ownerDocument.isVisibleToPublicUsers();
-		final boolean pageProtected     = _ownerDocument.isVisibleToAuthenticatedUsers();
-		final boolean pagePrivate       = !pagePublic && !pageProtected;
-		final boolean pagePublicOnly    = pagePublic && !pageProtected;
-		final boolean elementPublic     = isVisibleToPublicUsers();
-		final boolean elementProtected  = isVisibleToAuthenticatedUsers();
-		final boolean elementPrivate    = !elementPublic && !elementProtected;
-		final boolean elementPublicOnly = elementPublic && !elementProtected;
-
-		if (pagePrivate && !elementPrivate) {
-
-			if (elementPublicOnly) {
-				instructions.add("@structr:public-only");
-				return;
-			}
-
-			if (elementPublic && elementProtected) {
-				instructions.add("@structr:public");
-				return;
-			}
-
-			if (elementProtected) {
-				instructions.add("@structr:protected");
-				return;
-			}
-		}
-
-		if (pageProtected && !elementProtected) {
-
-			if (elementPublicOnly) {
-				instructions.add("@structr:public-only");
-				return;
-			}
-
-			if (elementPublic && elementProtected) {
-				instructions.add("@structr:public");
-				return;
-			}
-
-			if (elementPrivate) {
-				instructions.add("@structr:private");
-				return;
-			}
-		}
-
-		if (pagePublic && !elementPublic) {
-
-			if (elementPublicOnly) {
-				instructions.add("@structr:public-only");
-				return;
-			}
-
-			if (elementProtected) {
-				instructions.add("@structr:protected");
-				return;
-			}
-
-			if (elementPrivate) {
-				instructions.add("@structr:private");
-				return;
-			}
-		}
-
-		if (pagePublicOnly && !elementPublicOnly) {
-
-			if (elementPublic && elementProtected) {
-				instructions.add("@structr:public");
-				return;
-			}
-
-			if (elementProtected) {
-				instructions.add("@structr:protected");
-				return;
-			}
-
-			if (elementPrivate) {
-				instructions.add("@structr:private");
-				return;
-			}
-
-			return;
-		}
 	}
 }

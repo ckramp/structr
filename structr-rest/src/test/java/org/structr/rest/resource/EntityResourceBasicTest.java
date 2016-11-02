@@ -19,10 +19,22 @@
 package org.structr.rest.resource;
 
 import com.jayway.restassured.RestAssured;
+import com.jayway.restassured.filter.log.ResponseLoggingFilter;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.structr.common.error.FrameworkException;
+import org.structr.core.graph.Tx;
 import org.structr.rest.common.StructrRestTest;
 import org.structr.rest.entity.TestObject;
+import org.structr.rest.entity.TestOne;
 
 /**
  *
@@ -30,9 +42,81 @@ import org.structr.rest.entity.TestObject;
  */
 public class EntityResourceBasicTest extends StructrRestTest {
 
+	private static final Logger logger = LoggerFactory.getLogger(EntityResourceBasicTest.class.getName());
+
+	@Test
+	public void testInvokeMethodResult() {
+
+		String id = null;
+
+		try (final Tx tx = app.tx()) {
+
+			final TestOne test = app.create(TestOne.class);
+
+			// store ID for later use
+			id = test.getUuid();
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+
+			logger.warn("", fex);
+			fail("Unexpected exception.");
+		}
+
+		// execute test method, expect sane result (not 500)
+		RestAssured
+			.given()
+			.contentType("application/json; charset=UTF-8")
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(201))
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(500))
+			.expect()
+			.statusCode(200)
+			.when()
+			.post(concat("/test_ones/", id, "/test01"));
+
+
+		// execute test method, expect sane result (not 500)
+		RestAssured
+			.given()
+			.contentType("application/json; charset=UTF-8")
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(201))
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(500))
+			.expect()
+			.statusCode(200)
+			.when()
+			.post(concat("/test_ones/", id, "/test02"));
+
+
+		// execute test method, expect sane result (not 500)
+		RestAssured
+			.given()
+			.contentType("application/json; charset=UTF-8")
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(201))
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(500))
+			.expect()
+			.statusCode(200)
+			.when()
+			.post(concat("/test_ones/", id, "/test03"));
+
+
+		// execute test method, expect sane result (not 500)
+		RestAssured
+			.given()
+			.contentType("application/json; charset=UTF-8")
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(201))
+			.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(500))
+			.expect()
+			.statusCode(200)
+			.when()
+			.post(concat("/test_ones/", id, "/test04"));
+
+	}
+
 	/**
 	 * Test the correct response for a non-existing entity
 	 */
+	@Test
 	public void test000NotFoundError() {
 
 		// provoke 404 error with GET on non-existing resource
@@ -50,6 +134,7 @@ public class EntityResourceBasicTest extends StructrRestTest {
 	/**
 	 * Test the creation of a single unnamed entity.
 	 */
+	@Test
 	public void test010CreateEmptyTestObject() {
 
 		// create empty object
@@ -99,6 +184,7 @@ public class EntityResourceBasicTest extends StructrRestTest {
 	 * given name. This method also tests the contents of the JSON
 	 * response and reasonable query and serialization time.
 	 */
+	@Test
 	public void test020CreateNamedTestObject() {
 
 		// create named object

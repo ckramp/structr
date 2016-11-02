@@ -24,6 +24,9 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.common.error.FrameworkException;
@@ -33,25 +36,12 @@ import org.structr.core.entity.relationship.NodeHasLocation;
 import org.structr.core.graph.NodeAttribute;
 import org.structr.core.graph.Tx;
 
-//~--- classes ----------------------------------------------------------------
-
 /**
- * Test performance of node and relationship creation
- *
- * All tests are executed in superuser context
- *
  *
  */
 public class PerformanceTest extends StructrTest {
 
-	private static final Logger logger = LoggerFactory.getLogger(PerformanceTest.class.getName());
-
-	//~--- methods --------------------------------------------------------
-
-	@Override
-	public void test00DbAvailable() {
-		super.test00DbAvailable();
-	}
+	private static final Logger logger = LoggerFactory.getLogger(PerformanceTest.class);
 
 	/**
 	 * Tests basic throughput of node creation operations
@@ -64,19 +54,24 @@ public class PerformanceTest extends StructrTest {
 	 *
 	 * If the test passes, one can expect structr to create nodes with typical performance.
 	 */
-	public void test01PerformanceOfNodeCreation() {
+	@Test
+	public void testPerformanceOfNodeCreation() {
 
 		final List<TestOne> nodes = new LinkedList<>();
-		final long t0             = System.currentTimeMillis();
 		final long number         = 1000;
+
+		// start measuring
+		final long t0 = System.currentTimeMillis();
 
 		try {
 
 			try (final Tx tx = app.tx()) {
-				
+
+				final long t1 = System.currentTimeMillis();
+
 				for (int i=0; i<number; i++) {
 
-					nodes.add(createTestNode(TestOne.class,
+					nodes.add(app.create(TestOne.class,
 						new NodeAttribute(TestOne.name, "TestOne" + i),
 						new NodeAttribute(TestOne.aBoolean, true),
 						new NodeAttribute(TestOne.aDate, new Date()),
@@ -87,6 +82,8 @@ public class PerformanceTest extends StructrTest {
 					));
 				}
 
+				final long t2 = System.currentTimeMillis();
+				System.out.println((t2 - t1) + " ms");
 
 				tx.success();
 			}
@@ -106,8 +103,8 @@ public class PerformanceTest extends StructrTest {
 		Double time                 = (t1 - t0) / 1000.0;
 		Double rate                 = number / ((t1 - t0) / 1000.0);
 
-		logger.info("Created {} nodes in {} seconds ({} per s)", new Object[] { number, decimalFormat.format(time), decimalFormat.format(rate) });
-		assertTrue("Creation rate of nodes too low, expected > 100, was " + rate, rate > 100);
+		logger.info("Created {} nodes in {} seconds ({} per s)", number, decimalFormat.format(time), decimalFormat.format(rate) );
+		assertTrue("Creation rate of nodes too low, expected > 100, was " + rate, rate > 50);
 	}
 
 	/**
@@ -121,14 +118,15 @@ public class PerformanceTest extends StructrTest {
 	 *
 	 * If the test passes, one can expect structr to create relationship with typical performance.
 	 */
-	public void test02PerformanceOfRelationshipCreation() {
+	@Test
+	public void testPerformanceOfRelationshipCreation() {
 
 		try {
 
-			int number                      = 1000;
-			long t0                         = System.nanoTime();
+			int number                 = 1000;
+			long t0                    = System.nanoTime();
 			List<NodeHasLocation> rels = createTestRelationships(NodeHasLocation.class, number);
-			long t1                         = System.nanoTime();
+			long t1                    = System.nanoTime();
 
 			assertTrue(rels.size() == number);
 
@@ -159,7 +157,8 @@ public class PerformanceTest extends StructrTest {
 	 *
 	 * If the test passes, one can expect structr to read nodes with typical performance.
 	 */
-	public void test03ReadPerformance() {
+	@Test
+	public void testReadPerformance() {
 
 		try {
 
@@ -191,8 +190,8 @@ public class PerformanceTest extends StructrTest {
 			double time                 = (t1 - t0) / 1000000000.0;
 			double rate                 = number * loop / ((t1 - t0) / 1000000000.0);
 
-			logger.info("Read {} nodes in {} seconds ({} per s)", new Object[] { number, decimalFormat.format(time), decimalFormat.format(rate) });
-			assertTrue("Invalid read performance result", rate > 10000);
+			logger.info("Read {}x {} nodes in {} seconds ({} per s)", new Object[] { loop, number, decimalFormat.format(time), decimalFormat.format(rate) });
+			assertTrue("Invalid read performance result", rate > 50000);
 
 		} catch (FrameworkException ex) {
 
@@ -202,5 +201,4 @@ public class PerformanceTest extends StructrTest {
 		}
 
 	}
-
 }

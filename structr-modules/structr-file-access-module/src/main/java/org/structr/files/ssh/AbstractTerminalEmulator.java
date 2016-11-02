@@ -253,6 +253,10 @@ public abstract class AbstractTerminalEmulator extends Thread implements Termina
 
 										handleHome();
 										break;
+
+									case 90:
+										handleShiftTab();
+										break;
 								}
 								break;
 
@@ -305,14 +309,28 @@ public abstract class AbstractTerminalEmulator extends Thread implements Termina
 	}
 
 	@Override
-	public void print(final String text) throws IOException {
-		writer.write(text);
+	public void print(final Object... text) throws IOException {
+
+		if (text != null) {
+
+			for (final Object o : text) {
+
+				if (o != null) {
+
+					writer.write(o.toString().replaceAll("\n", "\r\n"));
+
+				} else {
+
+					writer.write("null");
+				}
+			}
+		}
 		writer.flush();
 	}
 
 	@Override
-	public void println(final String text) throws IOException {
-		writer.write(text);
+	public void println(final Object... text) throws IOException {
+		print(text);
 		println();
 		writer.flush();
 	}
@@ -337,6 +355,11 @@ public abstract class AbstractTerminalEmulator extends Thread implements Termina
 	@Override
 	public void flush() throws IOException {
 		writer.flush();
+	}
+
+	@Override
+	public void clearTabCount() {
+		tabCount = 0;
 	}
 
 	// ----- protected methods -----

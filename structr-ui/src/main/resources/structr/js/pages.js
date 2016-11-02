@@ -733,6 +733,8 @@ var _Pages = {
 			Command.clonePage(entity.id);
 		});
 
+		_Elements.appendContextMenu(div, entity);
+
 		div.append('<img title="Sync page \'' + entity.name + '\' to remote instance" alt="Sync page \'' + entity.name + '\' to remote instance" class="push_icon button" src="' + _Icons.push_file_icon + '">');
 		div.children('.push_icon').on('click', function() {
 			Structr.pushDialog(entity.id, true);
@@ -993,8 +995,7 @@ var _Pages = {
 
 		var parentId = entity.parent && entity.parent.id;
 		if (parentId) {
-			$('.delete_icon', div).replaceWith('<img title="Remove" '
-					+ 'alt="Remove" class="delete_icon button" src="' + _Icons.delete_brick_icon + '">');
+			$('.delete_icon', div).replaceWith('<img title="Remove" alt="Remove" class="delete_icon button" src="' + _Icons.delete_brick_icon + '">');
 			$('.button', div).on('mousedown', function(e) {
 				e.stopPropagation();
 			});
