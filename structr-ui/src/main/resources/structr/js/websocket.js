@@ -159,16 +159,10 @@ function wsConnect() {
 
 				StructrModel.callCallback(data.callback, data.data[data.data['key']]);
 
-			} else if (command === 'LOGOUT') { /*********************** LOGOUT ************************/
-
-				user = null;
-				Structr.clearMain();
-				Structr.login();
-
 			} else if (command === 'GET_LOCAL_STORAGE') { /*********************** GET_LOCAL_STORAGE ************************/
 
 				if (data.data.localStorageString && data.data.localStorageString.length) {
-					localStorageObject = JSON.parse(data.data.localStorageString);
+					LSWrapper.setAsJSON(data.data.localStorageString);
 				}
 
 				StructrModel.callCallback(data.callback, data.data[data.data['key']]);

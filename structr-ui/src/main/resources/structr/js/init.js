@@ -256,7 +256,8 @@ var _Icons = {
 	search_icon: 'icon/zoom.png',
 	star_icon: 'icon/star.png',
 	star_delete_icon: 'icon/star_delete.png',
-	image_icon: 'icon/image.png'
+	image_icon: 'icon/image.png',
+	arrow_up_down: 'icon/arrow_up_down.png'
 };
 
 var Structr = {
@@ -400,6 +401,7 @@ var Structr = {
 		if (Command.logout(user)) {
 			Cookies.remove('JSESSIONID');
 			sessionId.length = 0;
+			LSWrapper.clear();
 			Structr.renewSessionId();
 			Structr.clearMain();
 			Structr.login(text);
@@ -505,7 +507,7 @@ var Structr = {
 		Command.saveLocalStorage();
 	},
 	restoreLocalStorage: function(callback) {
-		if (!localStorageObject || (Object.keys(localStorageObject).length === 0 && localStorageObject.constructor === Object)) {
+		if (!LSWrapper.isLoaded()) {
 			_Logger.log(_LogType.INIT, "Restoring localstorage");
 			Command.getLocalStorage(callback);
 		} else {
