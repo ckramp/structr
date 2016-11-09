@@ -716,3 +716,236 @@ var _Logger = {
 		return logtypes;
 	}
 };
+
+/**
+ * Encapsulated Console object so we can keep error-handling and console-code in one place
+ */
+var _Console = new (function () {
+
+	// private variables
+	var _terminal;
+	var _initialized = false;
+	var _consoleVisible = false;
+
+
+	// public methods
+	this.logoutAction = function () {
+		Command.console('clear');
+		Command.console('exit');
+
+		_terminal.reset();
+		_initialized = false;
+		_hideConsole();
+	};
+
+	this.initConsole = function() {
+		if (_initialized) {
+			return;
+		}
+
+		// Get initial mode and prompt from backend
+		Command.console('Console.getMode()', function(data) {
+
+			var message = data.message;
+			var mode = data.data.mode;
+			var prompt = data.data.prompt;
+			var versionInfo = data.data.versionInfo;
+			//console.log(message, mode, prompt, versionInfo);
+
+			var consoleEl = $('#structr-console');
+			_terminal = consoleEl.terminal(function(command, term) {
+				if (command !== '') {
+					try {
+
+						Command.console(command, function(data) {
+							var prompt = data.data.prompt;
+							if (prompt) {
+								term.set_prompt(prompt + '> ');
+							}
+
+							var result = data.message;
+							if (result !== undefined) {
+								term.echo(new String(result));
+							}
+						});
+
+					} catch (e) {
+						term.error(new String(e));
+					}
+				} else {
+					term.echo('');
+				}
+			}, {
+				greetings: _getBanner() + 'Welcome to Structr (' + versionInfo + '). Use <Shift>+<Tab> to switch modes.',
+				name: 'structr-console',
+				height: 470,
+				prompt: prompt + '> ',
+				keydown: function(e) {
+					if (e.which === 17) {
+						return true;
+					}
+				},
+				completion: function(term, lineToBeCompleted, callback) {
+
+					if (shiftKey) {
+
+						switch (term.consoleMode) {
+
+							case 'REST':
+								mode = 'JavaScript';
+								break;
+
+							case 'JavaScript':
+								mode = 'StructrScript';
+								break;
+
+							case 'StructrScript':
+								mode = 'Cypher';
+								break;
+
+							case 'Cypher':
+								mode = 'AdminShell';
+								break;
+
+							case 'AdminShell':
+								mode = 'REST';
+								break;
+						}
+
+						var line = 'Console.setMode("' + mode + '")';
+						term.consoleMode = mode;
+
+						Command.console(line, function(data) {
+							var prompt = data.data.prompt;
+							if (prompt) {
+								term.set_prompt(prompt + '> ');
+							}
+							var result = data.message;
+							if (result !== undefined) {
+								term.echo(new String(result));
+							}
+						});
+
+					} else {
+						Command.console(lineToBeCompleted, function(data) {
+							var commands = JSON.parse(data.data.commands);
+							callback(commands);
+						}, true);
+					}
+				}
+			});
+			_terminal.consoleMode = mode;
+			_terminal.echo(message);
+
+			_initialized = true;
+		});
+	};
+
+	this.toggleConsole = function() {
+		if (_consoleVisible === true) {
+			_hideConsole();
+		} else {
+			_showConsole();
+		}
+	};
+
+	// private methods
+	var _getBanner = function () {
+		return ''
+		+ '        _                          _         \n'
+		+ ' ____  | |_   ___   _   _   ____  | |_   ___ \n'
+		+ '(  __| | __| |  _| | | | | |  __| | __| |  _|\n'
+		+ ' \\ \\   | |   | |   | | | | | |    | |   | |\n'
+		+ ' _\\ \\  | |_  | |   | |_| | | |__  | |_  | |\n'
+		+ '|____) |___| |_|   |_____| |____| |___| |_|  \n\n';
+	};
+
+	var _showConsole = function () {
+		_consoleVisible = true;
+		_terminal.enable();
+		$('#structr-console').slideDown('fast');
+	};
+
+	var _hideConsole = function () {
+		_consoleVisible = false;
+		_terminal.disable();
+		$('#structr-console').slideUp('fast');
+	};
+
+});
+
+var CacheWithCallbacks = function () {
+
+	// private properties
+	var _cache = {};
+
+	// public api
+	/**
+	 * This methods registers a callback for an object ID.
+	 * returns true if that ID has not seen before => needs to be fetched from server
+	 * returns false if that ID or value is already present and thus the object does not need to be fetched
+	 */
+	this.registerCallbackForId = function (id, callback) {
+
+		if (_cache[id] === undefined) {
+
+			_cache[id] = {
+				callbacks: [callback]
+			};
+
+			return true;
+
+		} else if (_cache[id].value === undefined) {
+
+			_cache[id].callbacks.push(callback);
+
+			return false;
+
+		} else {
+
+			if (typeof callback === "function") {
+				callback(_cache[id].value);
+			}
+
+			return false;
+
+		}
+
+	};
+
+	this.addObject = function(obj) {
+		if (_cache[obj.id] === undefined) {
+
+			_cache[obj.id] = {
+				value: obj
+			};
+
+		} else if (_cache[obj.id].value === undefined) {
+
+			_cache[obj.id].value = obj;
+			_runRegisteredCacheCallbacks(obj.id);
+
+		}
+	};
+
+	this.clear = function () {
+		_cache = {};
+	};
+
+	// private methods
+	function _runRegisteredCacheCallbacks (id) {
+
+		if (_cache[id] !== undefined && _cache[id].callbacks) {
+
+			_cache[id].callbacks.forEach(function(callback) {
+				if (typeof callback === "function") {
+					callback(_cache[id].value);
+				}
+			});
+
+			_cache[id].callbacks = [];
+		}
+
+	}
+
+};
