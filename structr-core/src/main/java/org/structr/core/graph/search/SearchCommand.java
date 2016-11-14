@@ -503,19 +503,6 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 
 		andType(type);
 
-
-		/*
-		// create a new search group
-		and();
-
-		for (final String subtype : getAllSubtypesAsStringSet(type.getSimpleName())) {
-			orType(subtype);
-		}
-
-		// exit search group
-		parent();
-		*/
-
 		return this;
 	}
 
@@ -523,18 +510,6 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 	public org.structr.core.app.Query<T> orTypes(final Class type) {
 
 		orType(type);
-
-		/*
-		// create a new search group
-		or();
-
-		for (final String subtype : getAllSubtypesAsStringSet(type.getSimpleName())) {
-			orType(subtype);
-		}
-
-		// exit search group
-		parent();
-		*/
 
 		return this;
 	}

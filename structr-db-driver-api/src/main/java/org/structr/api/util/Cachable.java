@@ -16,35 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.structr.core.property;
-
-import org.structr.api.search.Occurrence;
-import org.structr.common.SecurityContext;
-import org.structr.core.app.Query;
-import org.structr.core.graph.search.SearchAttribute;
-import org.structr.core.graph.search.UuidSearchAttribute;
+package org.structr.api.util;
 
 /**
- *
- *
+ * Elements that can be values in a FixedSizeCache. This interface
+ * provides an invalidation method for entries that are removed
+ * from the FixedSizeCache due to size restrictions.
  */
-public class UuidProperty extends StringProperty {
+public interface Cachable {
 
-	public UuidProperty() {
-
-		super("id");
-
-		indexed();
-		systemInternal();
-		readOnly();
-		writeOnce();
-		unique(true);
-		notNull(true);
-
-	}
-
-	@Override
-	public SearchAttribute getSearchAttribute(final SecurityContext securityContext, final Occurrence occur, final String searchValue, final boolean exactMatch, final Query query) {
-		return new UuidSearchAttribute(searchValue, occur);
-	}
+	void invalidate();
 }

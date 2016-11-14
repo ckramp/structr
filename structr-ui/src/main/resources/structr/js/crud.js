@@ -24,7 +24,7 @@ var browser = (typeof document === 'object');
 var crudPagerDataKey = 'structrCrudPagerData_' + port + '_';
 var crudTypeKey = 'structrCrudType_' + port;
 var crudHiddenColumnsKey = 'structrCrudHiddenColumns_' + port;
-var crudHiddenTabsKey = 'structrCrudHiddenTabs_' + port;
+var crudRecentTypesKey = 'structrCrudRecentTypes_' + port;
 
 if (browser) {
 
@@ -43,6 +43,10 @@ if (browser) {
 		Structr.registerModule('crud', _Crud);
 
 		_Crud.resize();
+
+		$(document).on('click', '#crud-left li', function() {
+			_Crud.typeSelected($(this).data('type'));
+		});
 
 	});
 
@@ -67,7 +71,6 @@ var _Crud = {
 					// no schema entry found?
 					if (!data || !data.result || data.result_count === 0) {
 
-						// console.log("ERROR: loading Schema " + type);
 						new MessageBuilder().warning("Failed loading Schema for '" + type + "' - check your resource access grants.").show();
 
 					} else {
@@ -85,19 +88,15 @@ var _Crud = {
 					}
 				},
 				400: function(data) {
-					console.log(data);
 					Structr.errorFromResponse(data.responseJSON, url);
 				},
 				401: function(data) {
-					console.log(data);
 					Structr.errorFromResponse(data.responseJSON, url);
 				},
 				403: function(data) {
-					console.log(data);
 					Structr.errorFromResponse(data.responseJSON, url);
 				},
 				404: function(data) {
-					console.log(data);
 					Structr.errorFromResponse(data.responseJSON, url);
 				},
 				422: function(data) {
@@ -118,100 +117,50 @@ var _Crud = {
 	order: {},
 	page: {},
 	pageSize: {},
-	filteredNodeTypes: [],
-	displayCustomTypes: true,
-	displayCoreTypes: false,
-	displayHtmlTypes: false,
-	displayUiTypes: false,
-	displayLogTypes: false,
-	displayOtherTypes: false,
 	init: function() {
 
 		main.append('<div class="searchBox"><input class="search" name="search" placeholder="Search"><img class="clearSearchIcon" src="' + _Icons.grey_cross_icon + '"></div>');
-		main.append('<div id="resourceTabs">'
-			+ '<div id="resourceTabsSettings"></div>'
-			+ '<ul id="resourceTabsMenu"><li class="last hidden">'
-			+ '<input type="checkbox" id="resourceTabsAutoHideCheckbox"><label for="resourceTabsAutoHideCheckbox"> Show selected tabs only</label>'
-			+ ' <span id="resourceTabsSelectAllWrapper"><input type="checkbox" id="resourceTabsSelectAll"><label for="resourceTabsSelectAll"> Select all</label></span>'
-	        + ' <span id="resourceTabsToggleCustomWrapper"><input type="checkbox" id="resourceTabsToggleCustom"><label for="resourceTabsToggleCustom"> Custom types</label></span>'
-	        + ' <span id="resourceTabsToggleCoreWrapper"><input type="checkbox" id="resourceTabsToggleCore"><label for="resourceTabsToggleCore"> Core types</label></span>'
-	        + ' <span id="resourceTabsToggleHtmlWrapper"><input type="checkbox" id="resourceTabsToggleHtml"><label for="resourceTabsToggleHtml"> HTML types</label></span>'
-	        + ' <span id="resourceTabsToggleUiWrapper"><input type="checkbox" id="resourceTabsToggleUi"><label for="resourceTabsToggleUi"> UI types</label></span>'
-	        + ' <span id="resourceTabsToggleLogWrapper"><input type="checkbox" id="resourceTabsToggleLog"><label for="resourceTabsToggleLog"> Log types</label></span>'
-	        + ' <span id="resourceTabsToggleOtherWrapper"><input type="checkbox" id="resourceTabsToggleOther"><label for="resourceTabsToggleOther"> Other types</label></span>'
-			+ '</li></ul>'
-	        + '</div>');
+		main.append('<div id="crud-main"><div id="crud-left">'
+				+ '<div id="crud-types" class="resourceBox"><h2>All Types</h2><input placeholder="Filter types..." id="crudTypesFilter"><ul id="crud-types-list"></ul></div>'
+				+ '<div id="crud-recent-types" class="resourceBox"><h2>Recent</h2><ul id="crud-recent-types-list"></ul></div></div>'
+				+ '<div id="crud-right" class="resourceBox full-height-box"></div></div>');
 
-		if (Structr.getAutoHideInactiveTabs()) {
-			$('#resourceTabsAutoHideCheckbox').prop('checked', true);
-			Structr.doHideSelectAllCheckbox();
-			$('#resourceTabsMenu li.last span').hide();
-		}
-		$('#resourceTabsAutoHideCheckbox').change(function () {
-			var checked = $(this).prop('checked');
-			Structr.setAutoHideInactiveTabs(checked);
-			Structr.setHideInactiveTabs(checked);
-			if (checked) {
-				$('#resourceTabsMenu li.last span').hide();
-			} else {
-				$('#resourceTabsMenu li.last span').show();
+		$('#crudTypesFilter').keyup(function (e) {
+			if (e.keyCode === 27) {
+
+				$(this).val('');
+
+			} else if (e.keyCode === 13) {
+
+				var filterVal = $(this).val().toLowerCase();
+				var matchingTypes = Object.keys(_Crud.types).filter(function(type) {
+					return type.toLowerCase() === filterVal;
+				});
+
+				if (matchingTypes.length === 1) {
+					_Crud.typeSelected(matchingTypes[0]);
+				}
+
 			}
+
+			_Crud.filterTypes($(this).val().toLowerCase());
 		});
 
-		$('#resourceTabsSelectAll').change(function () {
-			($(this).prop('checked') ? Structr.doSelectAllTabs() : Structr.doDeselectAllTabs());
-			$('#resourceTabsToggleCustom').prop('checked', true);
-			$('#resourceTabsToggleCore').prop('checked', true);
-			$('#resourceTabsToggleHtml').prop('checked', true);
-			$('#resourceTabsToggleUi').prop('checked', true);
-			$('#resourceTabsToggleLog').prop('checked', true);
-			$('#resourceTabsToggleOther').prop('checked', true);
-		});
-
-		$('#resourceTabsToggleCustom').change(function () {
-			_Crud.displayCustomTypes = $(this).prop('checked');
-			_Crud.filterTabs();
-		});
-
-		$('#resourceTabsToggleCore').change(function () {
-			_Crud.displayCoreTypes = $(this).prop('checked');
-			_Crud.filterTabs();
-		});
-
-		$('#resourceTabsToggleHtml').change(function () {
-			_Crud.displayHtmlTypes = $(this).prop('checked');
-			_Crud.filterTabs();
-		});
-
-		$('#resourceTabsToggleUi').change(function () {
-			_Crud.displayUiTypes = $(this).prop('checked');
-			_Crud.filterTabs();
-		});
-
-		$('#resourceTabsToggleLog').change(function () {
-			_Crud.displayLogTypes = $(this).prop('checked');
-			_Crud.filterTabs();
-		});
-
-		$('#resourceTabsToggleOther').change(function () {
-			_Crud.displayOtherTypes = $(this).prop('checked');
-			_Crud.filterTabs();
-		});
-
-		Structr.ensureIsAdmin($('#resourceTabs'), function() {
+		Structr.ensureIsAdmin($('#crud-main'), function() {
 
 			_Crud.schemaLoading = false;
 			_Crud.schemaLoaded = false;
 			_Crud.keys = {};
 
 			_Crud.loadSchema(function() {
+
 				if (browser) {
-					_Crud.initTabs();
+					_Crud.updateTypeList();
+					_Crud.updateRecentTypeList(_Crud.type);
 				}
-				Structr.determineSelectAllCheckboxState();
 				_Crud.resize();
 				Structr.unblockMenu();
-				$('a[href="#' + _Crud.type + '"]').click();
+
 			});
 
 			searchField = $('.search', main);
@@ -231,7 +180,7 @@ var _Crud = {
 						return false;
 					});
 
-					$('#resourceTabs', main).hide();
+					$('#crud-main', main).hide();
 					$('#resourceBox', main).hide();
 
 				} else if (e.keyCode === 27 || searchString === '') {
@@ -247,30 +196,25 @@ var _Crud = {
 	},
 	onload: function() {
 
-		$('#main-help a').attr('href', 'http://docs.structr.org/frontend-user-guide#Data');
+		Structr.updateMainHelpLink('http://docs.structr.org/frontend-user-guide#Data');
 
 		if (!_Crud.type) {
 			_Crud.restoreType();
-			//console.log(_Crud.type);
 		}
 
 		if (!_Crud.type) {
 			_Crud.type = urlParam('type');
-			//console.log(_Crud.type);
 		}
 
 		if (!_Crud.type) {
 			_Crud.type = defaultType;
-			//console.log(_Crud.type);
 		}
 
 		// check for single edit mode
 		var id = urlParam('id');
 		if (id) {
-			//console.log('edit mode, editing ', id);
 			_Crud.loadSchema(function() {
 				_Crud.crudRead(null, id, function(node) {
-					//console.log(node, _Crud.view[node.type]);
 					_Crud.showDetails(node, node.type);
 				});
 			});
@@ -283,139 +227,126 @@ var _Crud = {
 		$(window).on('resize', function() {
 			_Crud.resize();
 		});
-		hiddenTabs = JSON.parse(LSWrapper.getItem(crudHiddenTabsKey)) || hiddenTabs;
-		_Logger.log(_LogType.CRUD, '########## Hidden tabs ##############', hiddenTabs);
 
 	},
-	initTabs: function() {
+	updateTypeList: function () {
 
+		var $typesList = $('#crud-types-list');
 		Object.keys(_Crud.types).sort().forEach(function(type) {
-			//console.log('Init tab for type', type);
-			_Crud.addTab(_Crud.types[type]);
+			$typesList.append('<li class="crud-type" data-type="' + type + '">' + type + '</li>');
 		});
 
-		$('#resourceTabsMenu li:not(.last) input[type="checkbox"]').on('click', function(e) {
-			e.stopPropagation();
-			//e.preventDefault();
+		_Crud.typeSelected(_Crud.type);
 
-			var inp = $(this);
+		_Crud.resize();
+	},
+	typeSelected: function (selectedType) {
 
-			var key = inp.parent().find('span').text();
+		_Crud.updateRecentTypeList(selectedType);
 
-			if (!inp.is(':checked')) {
-				hiddenTabs.push(key);
-			} else {
-				if (hiddenTabs.indexOf(key) > -1) {
-					hiddenTabs.splice(hiddenTabs.indexOf(key), 1);
-				}
-			}
-			 LSWrapper.setItem(crudHiddenTabsKey, JSON.stringify(hiddenTabs));
+		$('#crud-left li').removeClass('active');
+		$('#crud-left li[data-type="' + selectedType + '"]').addClass('active');
 
-			 Structr.determineSelectAllCheckboxState();
-		});
+		// scroll to selected element
+		var $crudTypesList = $('#crud-types-list');
+		var positionOfList = $crudTypesList.position().top;
+		var scrollTopOfList = $crudTypesList.scrollTop();
+		var positionOfElement = $('li[data-type="' + selectedType + '"]', $crudTypesList).position().top;
+		$crudTypesList.animate({scrollTop: positionOfElement + scrollTopOfList - positionOfList });
 
-		$('#resourceTabs').tabs({
-			active: true,
-			activate: function(event, ui) {
+		_Crud.getProperties(selectedType, function(type, properties) {
 
-				var newType = ui.newPanel[0].id;
-				_Crud.getProperties(newType, function(type, properties) {
+			var crudRight = $('#crud-right');
+			fastRemoveAllChildren(crudRight[0]);
 
-					fastRemoveAllChildren($('#' + type)[0]);
-					//console.log('deactivated', _Crud.type, 'activated', newType);
+			crudRight.data('url', '/' + type);
 
-					_Crud.determinePagerData(type);
+			_Crud.determinePagerData(type);
+			var pagerNode = _Crud.addPager(type, crudRight);
 
-					var typeNode = $('#' + type);
-					var pagerNode = _Crud.addPager(type, typeNode);
-					typeNode.append('<table><thead></thead><tbody></tbody></table>');
-					var table = $('table', typeNode);
-					$('thead', table).append('<tr></tr>');
-					var tableHeaderRow = $('tr:first-child', table);
+			crudRight.append('<table class="crud-table"><thead></thead><tbody></tbody></table>');
+			var table = $('table', crudRight);
+			$('thead', table).append('<tr></tr>');
+			var tableHeaderRow = $('tr:first-child', table);
 
-					_Crud.filterKeys(type, Object.keys(properties)).forEach(function(key) {
-						var prop = properties[key];
-						tableHeaderRow.append('<th class="___' + prop.jsonName + '">' + _Crud.formatKey(prop.jsonName) + '</th>');
-					});
-					tableHeaderRow.append('<th class="___action_header">Actions</th>');
+			_Crud.filterKeys(type, Object.keys(properties)).forEach(function(key) {
+				var prop = properties[key];
+				tableHeaderRow.append('<th class="___' + prop.jsonName + '">' + prop.jsonName + '</th>');
+			});
+			tableHeaderRow.append('<th class="___action_header">Actions</th>');
 
-					typeNode.append('<div class="infoFooter">Query: <span class="queryTime"></span> s &nbsp; Serialization: <span class="serTime"></span> s</div>');
-					typeNode.append('<button id="create' + type + '"><img src="' + _Icons.add_icon + '"> Create new ' + type + '</button>');
-					typeNode.append('<button id="export' + type + '"><img src="' + _Icons.database_table_icon + '"> Export as CSV</button>');
-					typeNode.append('<button id="import' + type + '"><img src="' + _Icons.database_add_icon + '"> Import CSV</button>');
+			crudRight.append('<div id="crud-buttons">'
+					+ '<button id="create' + type + '"><img src="' + _Icons.add_icon + '"> Create new ' + type + '</button>'
+					+ '<button id="export' + type + '"><img src="' + _Icons.database_table_icon + '"> Export as CSV</button>'
+					+ '<button id="import' + type + '"><img src="' + _Icons.database_add_icon + '"> Import CSV</button>'
+					+ '</div>');
 
-					$('#create' + type, typeNode).on('click', function() {
-						_Crud.crudCreate(type);
-					});
-					$('#export' + type, typeNode).on('click', function() {
-						_Crud.crudExport(type);
-					});
+			crudRight.append('<div id="query-info">Query: <span class="queryTime"></span> s &nbsp; Serialization: <span class="serTime"></span> s</div>');
 
-					$('#import' + type, typeNode).on('click', function() {
-						_Crud.crudImport(type);
-					});
+			$('#create' + type, crudRight).on('click', function() {
+				_Crud.crudCreate(type);
+			});
+			$('#export' + type, crudRight).on('click', function() {
+				_Crud.crudExport(type);
+			});
 
-					var pagerNode = $('.pager', typeNode);
-					_Crud.deActivatePagerElements(pagerNode);
-					_Crud.activateList(type, properties);
-					typeNode = $('#' + type);
-					pagerNode = $('.pager', typeNode);
-					_Crud.activatePagerElements(type, pagerNode);
-					_Crud.updateUrl(type);
-				});
+			$('#import' + type, crudRight).on('click', function() {
+				_Crud.crudImport(type);
+			});
 
-			}
+			_Crud.deActivatePagerElements(pagerNode);
+			_Crud.activateList(type, properties);
+			_Crud.activatePagerElements(type, pagerNode);
+			_Crud.updateUrl(type);
 		});
 	},
-	filterTabs: function() {
-
-		Command.getSchemaInfo(null, function(nodes) {
-
-			nodes.sort(function(a, b) {
-				var aName = a.name.toLowerCase();
-				var bName = b.name.toLowerCase();
-				return aName < bName ? -1 : aName > bName ? 1 : 0;
-			});
-
-			nodes.forEach(function(node) {
-
-				var hide = false;
-
-				if (!_Crud.displayCustomTypes && node.className.startsWith('org.structr.dynamic')) hide = true;
-				if (!hide && !_Crud.displayCoreTypes   && node.className.startsWith('org.structr.core.entity')) hide = true;
-				if (!hide && !_Crud.displayHtmlTypes   && node.className.startsWith('org.structr.web.entity.html')) hide = true;
-				if (!hide && !_Crud.displayUiTypes     && node.className.startsWith('org.structr.web.entity') && !(_Crud.displayHtmlTypes && node.className.startsWith('org.structr.web.entity.html'))) hide = true;
-				if (!hide && !_Crud.displayLogTypes    && node.className.startsWith('org.structr.rest.logging.entity')) hide = true;
-				if (!hide && !_Crud.displayOtherTypes  && node.className.startsWith('org.structr.xmpp')) hide = true;
-
-				//console.log(hide, node.type);
-				if (hide) {
-					//_Crud.filteredNodeTypes.push(node.type);
-					$('#resourceTabsMenu li:not(.last) a[href="#' + node.type + '"] input[type="checkbox"]:checked').click();
-					return;
-				} else {
-					//_Crud.filteredNodeTypes.splice(_Crud.filteredNodeTypes.indexOf(node.type), 1);
-					$('#resourceTabsMenu li:not(.last) a[href="#' + node.type + '"] input[type="checkbox"]:not(:checked)').click();
-				}
-
-			});
-
+	filterTypes: function (filterVal) {
+		$('#crud-types-list li').each(function (i, el) {
+			var $el = $(el);
+			($el.data('type').toLowerCase().indexOf(filterVal) === -1) ? $el.hide() : $el.show();
 		});
+	},
+	updateRecentTypeList: function (selectedType) {
+
+		var recentTypes = LSWrapper.getItem(crudRecentTypesKey);
+
+		if (recentTypes && selectedType) {
+
+			var recentTypes = recentTypes.filter(function(type) {
+				return (type !== selectedType);
+			});
+			recentTypes.unshift(selectedType);
+
+		} else if (selectedType) {
+
+			recentTypes = [selectedType];
+
+		}
+
+		recentTypes = recentTypes.slice(0, 12);
+
+		if (recentTypes) {
+			var $recentTypesList = $('#crud-recent-types-list');
+
+			$('li', $recentTypesList).remove();
+
+			recentTypes.forEach(function (type) {
+				$recentTypesList.append('<li class="crud-type' + (selectedType === type ? ' active' : '') + '" data-type="' + type + '">' + type + '</li>');
+			});
+
+		}
+
+		LSWrapper.setItem(crudRecentTypesKey, recentTypes);
 
 	},
 	updateUrl: function(type) {
-		//console.log('updateUrl', type, _Crud.pageSize[type], _Crud.page[type]);
 
 		if (type) {
 			_Crud.type = type;
 			_Crud.storeType();
 			_Crud.storePagerData();
-			//window.history.pushState('', '', _Crud.sortAndPagingParameters(_Crud.sort[type], _Crud.order[type], _Crud.pageSize[type], _Crud.page[type]) + '&view=' + _Crud.view[type] + '&type=' + type + '#crud');
 			window.location.hash = 'crud';
 
-			if (Structr.getAutoHideInactiveTabs() || Structr.getHideInactiveTabs()) {
-				Structr.doHideInactiveTabs();
-			}
 		}
 		searchField.focus();
 
@@ -448,11 +379,11 @@ var _Crud = {
 		// Priority: JS vars -> Local Storage -> URL -> Default
 
 		if (!_Crud.view[type]) {
-			_Crud.view[type] = urlParam('view');
-			_Crud.sort[type] = urlParam('sort');
-			_Crud.order[type] = urlParam('order');
+			_Crud.view[type]     = urlParam('view');
+			_Crud.sort[type]     = urlParam('sort');
+			_Crud.order[type]    = urlParam('order');
 			_Crud.pageSize[type] = urlParam('pageSize');
-			_Crud.page[type] = urlParam('page');
+			_Crud.page[type]     = urlParam('page');
 		}
 
 		if (!_Crud.view[type]) {
@@ -460,20 +391,12 @@ var _Crud = {
 		}
 
 		if (!_Crud.view[type]) {
-			_Crud.view[type] = defaultView;
-			_Crud.sort[type] = defaultSort;
-			_Crud.order[type] = defaultOrder;
+			_Crud.view[type]     = defaultView;
+			_Crud.sort[type]     = defaultSort;
+			_Crud.order[type]    = defaultOrder;
 			_Crud.pageSize[type] = defaultPageSize;
-			_Crud.page[type] = defaultPage;
+			_Crud.page[type]     = defaultPage;
 		}
-	},
-	addTab: function(typeObj) {
-		var type = typeObj.type;
-		var hidden = hiddenTabs.indexOf(type) > -1;
-		$('#resourceTabsMenu li.last').before('<li' + (hidden ? ' class="hidden"' : '') + '><a href="#' + type + '"><span>' + _Crud.formatKey(type) + '</span><input type="checkbox"' + (!hidden ? ' checked="checked"' : '') + '></a></li>');
-		$('#resourceTabs').append('<div class="resourceBox" id="' + type + '" data-url="' + typeObj.url + '"></div>');
-		$('#resourceTabsMenu li.last').removeClass('hidden');
-		_Crud.resize();
 	},
 	/**
 	 * Return true if the combination of the given property key
@@ -572,7 +495,7 @@ var _Crud = {
 		return LSWrapper.getItem(crudPagerDataKey + '_collectionPage_' + type + '.___' + key);
 	},
 	replaceSortHeader: function(type) {
-		var table = $('#' + type + ' table');
+		var table = $('#crud-right table');
 		var newOrder = (_Crud.order[type] && _Crud.order[type] === 'desc' ? 'asc' : 'desc');
 		$('th', table).each(function(i, t) {
 			var th = $(t);
@@ -630,7 +553,7 @@ var _Crud = {
 				var sortKey = key;
 				th.append(
 					'<img src="' + _Icons.grey_cross_icon + '" alt="Hide this column" title="Hide this column">'
-					+ '<a href="' + _Crud.sortAndPagingParameters(type, sortKey, newOrder, _Crud.pageSize[type], _Crud.page[type]) + '#' + type + '">' + _Crud.formatKey(key) + '</a>');
+					+ '<a href="' + _Crud.sortAndPagingParameters(type, sortKey, newOrder, _Crud.pageSize[type], _Crud.page[type]) + '#' + type + '">' + key + '</a>');
 
 				if (_Crud.isCollection(key, type)) {
 					_Crud.appendPerCollectionPager(th, type, key);
@@ -641,7 +564,6 @@ var _Crud = {
 					_Crud.sort[type] = key;
 					_Crud.order[type] = (_Crud.order[type] && _Crud.order[type] === 'desc' ? 'asc' : 'desc');
 					_Crud.refreshList(type);
-					//_Crud.updateUrl(type);
 					return false;
 				});
 				$('img', th).on('click', function(event) {
@@ -683,7 +605,6 @@ var _Crud = {
 		});
 	},
 	updateCellPager: function(el, id, type, key, page, pageSize) {
-		//console.log('updateCellPager', id, el, type, key, page, pageSize);
 		$.ajax({
 			url: rootUrl + type + '/' + id + '/' + key + '/ui?page=' + page + '&pageSize=' + pageSize,
 			contentType: 'application/json; charset=UTF-8',
@@ -691,10 +612,7 @@ var _Crud = {
 			statusCode: {
 				200: function(data) {
 
-					//var resultCount = data.result_count;
 					var pageCount   = data.page_count;
-
-					//console.log('page count', pageCount, 'page', page, 'pageSize', pageSize);
 
 					$('.cell-pager .collection-page', el).val(page);
 					$('.cell-pager .page-count', el).val(pageCount);
@@ -738,14 +656,12 @@ var _Crud = {
 						_Crud.getAndAppendNode(type, id, key, preloadedNode.id, el, preloadedNode);
 					});
 
-					//console.log('result count', resultCount, 'page count', pageCount, 'page', page, 'pageSize', pageSize);
-
-					//var oldPage = parseInt(_Crud.getCollectionPage(type, key) || 1);
 					var page = 1;
 
-					if (!resultCount || !pageCount || pageCount === 1) return;
+					if (!resultCount || !pageCount || pageCount === 1) {
+						return;
+					}
 
-					//el.append('<div class="collection-cell"></div>');
 					el.prepend('<div class="cell-pager"></div>');
 					$('.cell-pager', el).append('<button class="prev disabled" disabled>&lt;</button>');
 					if (page > 1) {
@@ -797,13 +713,11 @@ var _Crud = {
 
 	},
 	sortAndPagingParameters: function(t, s, o, ps, p) {
-		//var typeParam = (t ? 'type=' + t : '');
 		var sortParam = (s ? 'sort=' + s : '');
 		var orderParam = (o ? 'order=' + o : '');
 		var pageSizeParam = (ps ? 'pageSize=' + ps : '');
 		var pageParam = (p ? 'page=' + p : '');
 
-		//var params = (typeParam ? '?' + typeParam : '');
 		var params = '';
 		params = params + (sortParam ? (params.length ? '&' : '?') + sortParam : '');
 		params = params + (orderParam ? (params.length ? '&' : '?') + orderParam : '');
@@ -820,14 +734,12 @@ var _Crud = {
 		properties = properties || _Crud.keys[type];
 		var url = rootUrl + type + '/ui' + _Crud.sortAndPagingParameters(type, _Crud.sort[type], _Crud.order[type], _Crud.pageSize[type], _Crud.page[type]);
 		_Crud.list(type, properties, url);
-		//document.location.hash = type;
 	},
 	clearList: function(type) {
-		var  div = $('#' + type + ' table tbody');
+		var  div = $('#crud-right table tbody');
 		fastRemoveAllChildren(div[0]);
 	},
 	list: function(type, properties, url) {
-		//_Crud.clearList(type);
 
 		$.ajax({
 			headers: {
@@ -845,7 +757,6 @@ var _Crud = {
 				_Crud.crudCache.clear();
 
 				data.result.forEach(function(item) {
-					//console.log('calling appendRow', type, item);
 					_Crud.appendRow(type, properties, item);
 				});
 				_Crud.updatePager(type, data.query_time, data.serialization_time, data.page_size, data.page, data.page_count);
@@ -883,11 +794,9 @@ var _Crud = {
 		}
 	},
 	crudExport: function(type) {
-		var url = rootUrl + '/' + $('#' + type).attr('data-url') + '/ui' + _Crud.sortAndPagingParameters(type, _Crud.sort[type], _Crud.order[type], _Crud.pageSize[type], _Crud.page[type]);
+		var url = rootUrl + '/' + $('#crud-right').data('url') + '/ui' + _Crud.sortAndPagingParameters(type, _Crud.sort[type], _Crud.order[type], _Crud.pageSize[type], _Crud.page[type]);
 
-		_Crud.dialog('Export ' + type + ' list as CSV', function() {
-		}, function() {
-		});
+		_Crud.dialog('Export ' + type + ' list as CSV', function() {}, function() {});
 		dialogText.append('<textarea class="exportArea"></textarea>');
 		var exportArea = $('.exportArea', dialogText);
 
@@ -920,7 +829,6 @@ var _Crud = {
 			url: url,
 			dataType: 'json',
 			contentType: 'application/json; charset=utf-8',
-			//async: false,
 			success: function(data) {
 				if (!data)
 					return;
@@ -932,7 +840,7 @@ var _Crud = {
 	},
 	crudImport: function(type) {
 
-		var url = csvRootUrl + $('#' + type).attr('data-url');
+		var url = csvRootUrl + $('#crud-right').data('url');
 
 		_Crud.dialog('Import CSV data for type ' + type + '', function() {
 		}, function() {
@@ -953,9 +861,8 @@ var _Crud = {
 				dataType: 'json',
 				contentType: 'text/csv; charset=utf-8',
 				method: 'POST',
-				data: importArea.val().split('\n').map($.trim).filter(function(line) { return line !== '' }).join('\n'),
+				data: importArea.val().split('\n').map($.trim).filter(function(line) { return line !== ''; }).join('\n'),
 				success: function(data) {
-					//console.log(data);
 					_Crud.refreshList(type);
 				}
 			});
@@ -968,7 +875,7 @@ var _Crud = {
 
 	},
 	updatePager: function(type, qt, st, ps, p, pc) {
-		var typeNode = $('#' + type);
+		var typeNode = $('#crud-right');
 		$('.queryTime', typeNode).text(qt);
 		$('.serTime', typeNode).text(st);
 		$('.pageSize', typeNode).val(ps);
@@ -1080,14 +987,8 @@ var _Crud = {
 			success: function(data) {
 				if (!data)
 					return;
-				//console.log('type', type);
-				_Crud.dialog('Edit ' + t + ' ' + id, function() {
-					//console.log('ok')
-				}, function() {
-					//console.log('cancel')
-				});
+				_Crud.dialog('Edit ' + t + ' ' + id, function() {}, function() {});
 				_Crud.showDetails(data.result, t);
-				//_Crud.populateForm($('#entityForm'), data.result);
 			}
 		});
 	},
@@ -1100,7 +1001,6 @@ var _Crud = {
 			dataType: 'json',
 			data: json,
 			contentType: 'application/json; charset=utf-8',
-			//async: false,
 			statusCode: {
 				201: function(xhr) {
 					if (onSuccess) {
@@ -1201,7 +1101,6 @@ var _Crud = {
 			type: 'GET',
 			dataType: 'json',
 			contentType: 'application/json; charset=utf-8',
-			//async: false,
 			success: function(data) {
 				if (!data)
 					return;
@@ -1220,7 +1119,6 @@ var _Crud = {
 			type: 'GET',
 			dataType: 'json',
 			contentType: 'application/json; charset=utf-8',
-			//async: false,
 			success: function(data) {
 				if (!data)
 					return;
@@ -1230,16 +1128,23 @@ var _Crud = {
 		});
 	},
 	crudUpdateObj: function(id, json, onSuccess, onError) {
+		var handleError = function () {
+			if (typeof onError === "function") {
+				onError();
+			} else {
+				_Crud.crudReset(id);
+			}
+		};
+
 		$.ajax({
 			url: rootUrl + id,
 			data: json,
 			type: 'PUT',
 			dataType: 'json',
 			contentType: 'application/json; charset=utf-8',
-			//async: false,
 			statusCode: {
 				200: function() {
-					if (onSuccess) {
+					if (typeof onSuccess === "function") {
 						onSuccess();
 					} else {
 						_Crud.crudRefresh(id);
@@ -1247,52 +1152,28 @@ var _Crud = {
 				},
 				400: function(data, status, xhr) {
 					_Crud.error('Bad request: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id);
-					}
+					handleError();
 				},
 				401: function(data, status, xhr) {
 					_Crud.error('Authentication required: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id);
-					}
+					handleError();
 				},
 				403: function(data, status, xhr) {
 					console.log(data, status, xhr);
 					_Crud.error('Forbidden: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id);
-					}
+					handleError();
 				},
 				404: function(data, status, xhr) {
 					_Crud.error('Not found: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id);
-					}
+					handleError();
 				},
 				422: function(data, status, xhr) {
 					_Crud.error('Error: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id);
-					}
+					handleError();
 				},
 				500: function(data, status, xhr) {
 					_Crud.error('Internal Error: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id);
-					}
+					handleError();
 				}
 			}
 		});
@@ -1307,6 +1188,14 @@ var _Crud = {
 			obj[key] = null;
 		}
 
+		var handleError = function () {
+			if (typeof onError === "function") {
+				onError();
+			} else {
+				_Crud.crudReset(id, key);
+			}
+		};
+
 		$.ajax({
 			url: url,
 			data: JSON.stringify(obj),
@@ -1314,7 +1203,7 @@ var _Crud = {
 			contentType: 'application/json; charset=utf-8',
 			statusCode: {
 				200: function() {
-					if (onSuccess) {
+					if (typeof onSuccess === "function") {
 						onSuccess();
 					} else {
 						_Crud.crudRefresh(id, key, oldValue);
@@ -1322,52 +1211,27 @@ var _Crud = {
 				},
 				400: function(data, status, xhr) {
 					_Crud.error('Bad request: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				401: function(data, status, xhr) {
 					_Crud.error('Authentication required: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				403: function(data, status, xhr) {
-					console.log(data, status, xhr);
 					_Crud.error('Forbidden: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				404: function(data, status, xhr) {
 					_Crud.error('Not found: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				422: function(data, status, xhr) {
 					_Crud.error('Error: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				500: function(data, status, xhr) {
 					_Crud.error('Internal Error: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				}
 			}
 		});
@@ -1376,75 +1240,59 @@ var _Crud = {
 		var url = rootUrl + id;
 		var obj = {};
 		obj[key] = null;
+
+		var handleSuccess = function () {
+			if (typeof onSuccess === "function") {
+				onSuccess();
+			} else {
+				_Crud.crudRefresh(id, key);
+			}
+		};
+
+		var handleError = function () {
+			if (typeof onError === "function") {
+				onError();
+			} else {
+				_Crud.crudReset(id, key);
+			}
+		};
+
 		$.ajax({
 			url: url,
 			data: JSON.stringify(obj),
 			type: 'PUT',
 			dataType: 'json',
 			contentType: 'application/json; charset=utf-8',
-			//async: false,
 			statusCode: {
 				200: function() {
-					if (onSuccess) {
-						onSuccess();
-					} else {
-						_Crud.crudRefresh(id, key);
-					}
+					handleSuccess();
 				},
 				204: function() {
-					if (onSuccess) {
-						onSuccess();
-					} else {
-						_Crud.crudRefresh(id, key);
-					}
+					handleSuccess();
 				},
 				400: function(data, status, xhr) {
 					_Crud.error('Bad request: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				401: function(data, status, xhr) {
 					_Crud.error('Authentication required: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				403: function(data, status, xhr) {
 					_Crud.error('Forbidden: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				404: function(data, status, xhr) {
 					_Crud.error('Not found: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				422: function(data, status, xhr) {
 					_Crud.error('Error: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				},
 				500: function(data, status, xhr) {
 					_Crud.error('Internal Error: ' + data.responseText, true);
-					if (onError) {
-						onError();
-					} else {
-						_Crud.crudReset(id, key);
-					}
+					handleError();
 				}
 			}
 		});
@@ -1455,7 +1303,6 @@ var _Crud = {
 			type: 'DELETE',
 			dataType: 'json',
 			contentType: 'application/json; charset=utf-8',
-			//async: false,
 			statusCode: {
 				200: function() {
 					var row = _Crud.row(id);
@@ -1487,12 +1334,10 @@ var _Crud = {
 		});
 	},
 	populateForm: function(form, node) {
-		//console.log(form, node);
 		var fields = $('input', form);
 		form.attr('data-id', node.id);
 		$.each(fields, function(f, field) {
 			var value = formatValue(node[field.name], field.name, node.type, node.id);
-			//console.log(field, field.name, value);
 			$('input[name="' + field.name + '"]').val(value);
 		});
 	},
@@ -1571,7 +1416,7 @@ var _Crud = {
 			_Crud.getProperties(item.type);
 		}
 		var id = item['id'];
-		var tbody = $('#' + type + ' table tbody');
+		var tbody = $('#crud-right table tbody');
 		tbody.append('<tr class="_' + id + '"></tr>');
 		_Crud.populateRow(id, item, type, properties);
 	},
@@ -1579,7 +1424,6 @@ var _Crud = {
 		var row = _Crud.row(id);
 		if (properties) {
 			_Crud.filterKeys(type, Object.keys(properties)).forEach(function(key) {
-				//console.log('populateRow for key', key, row);
 				row.append('<td class="___' + key + '"></td>');
 				var cells = _Crud.cells(id, key);
 				$.each(cells, function(i, cell) {
@@ -1779,7 +1623,6 @@ var _Crud = {
 			});
 		}
 
-		//searchField.focus();
 	},
 	appendEnumSelect: function(cell, id, key, format) {
 		cell.off('click');
@@ -1824,7 +1667,6 @@ var _Crud = {
 				type: 'GET',
 				dataType: 'json',
 				contentType: 'application/json; charset=utf-8;',
-				//async: false,
 				success: function(data) {
 					if (data.result.length > 0) {
 						_Crud.getAndAppendNode(parentType, parentId, key, data.result[0], cell);
@@ -1844,14 +1686,11 @@ var _Crud = {
 			cell.append('<div title="' + displayName + '" id="_' + node.id + '" class="node ' + (node.isImage? 'image ' : '') + ' ' + node.id + '_">' + fitStringToWidth(displayName, 80));
 			var nodeEl = $('#_' + node.id, cell);
 
-			//console.log('Schema types', _Crud.types);
-
 			var isSourceOrTarget = _Crud.types[parentType].isRel && (key === 'sourceId' || key === 'targetId');
 			if (!isSourceOrTarget) {
 				nodeEl.append('<img class="remove" src="' + _Icons.grey_cross_icon + '"></div>');
 			}
 
-			//console.log(node);
 			if (node.isImage) {
 
 				if (node.isThumbnail) {
@@ -1917,13 +1756,11 @@ var _Crud = {
 					headers: {
 						Accept: 'application/json; charset=utf-8; properties=id,name,type,contentType,isThumbnail,isImage,tnSmall,tnMid'
 					},
-					//async: false,
 					success: function(data) {
 						if (!data)
 							return;
 
 						var node = data.result;
-
 						_Crud.crudCache.addObject(node);
 					}
 				});
@@ -1937,7 +1774,7 @@ var _Crud = {
 		if (_Crud.clearSearchResults(el)) {
 			$('.clearSearchIcon').hide().off('click');
 			$('.search').val('');
-			$('#resourceTabs', main).show();
+			$('#crud-main', main).show();
 			$('#resourceBox', main).show();
 		}
 	},
@@ -1964,9 +1801,7 @@ var _Crud = {
 		var searchResults = $('.searchResults', el);
 
 		_Crud.resize();
-		//$('.search').select();
 
-		//var types = type ? [ type ] : _Crud.types;
 		var types;
 		var attr = 'name';
 		var posOfColon = searchString.indexOf(':');
@@ -1981,13 +1816,10 @@ var _Crud = {
 			}
 			types = [type.capitalize()];
 			searchString = typeAndValue[1];
-			//console.log('filter search type', types, attr, searchString);
 		} else {
 			types = type ? [type] : Object.keys(_Crud.types);
 			if (searchString.match(/[0-9a-f]{32}/)) {
 				attr = 'uuid'; // UUID
-				//types = ['']; // will be ignored anyway
-				//console.log('UUID detected', searchString);
 			}
 		}
 
@@ -2002,8 +1834,6 @@ var _Crud = {
 
 			searchResults.append('<div id="placeholderFor' + type + '" class="searchResultGroup resourceBox"><img class="loader" src="' + _Icons.ajax_loader_1 + '">Searching for "' + searchString + '" in ' + type + '</div>');
 
-			//console.log('Search URL', url)
-
 			$.ajax({
 				url: url,
 				type: 'GET',
@@ -2015,7 +1845,6 @@ var _Crud = {
 							return;
 						}
 						var result = data.result;
-						//console.log(result);
 						$('#placeholderFor' + type + '').remove();
 
 						if (result) {
@@ -2063,7 +1892,6 @@ var _Crud = {
 	},
 	noResults: function(searchResults, type) {
 		searchResults.append('<div id="resultsFor' + type + '" class="searchResultGroup resourceBox">No results for ' + type.capitalize() + '</div>');
-		//console.log('noResults', 'resultsFor' + type, searchResults, $('#resultsFor' + type));
 		window.setTimeout(function() {
 			$('#resultsFor' + type).fadeOut('fast');
 		}, 1000);
@@ -2076,7 +1904,6 @@ var _Crud = {
 		$('#resultsFor' + type, searchResults).append('<div title="' + displayName + '" " class="_' + node.id + ' node">' + fitStringToWidth(displayName, 120) + '</div>');
 
 		var nodeEl = $('#resultsFor' + type + ' ._' + node.id, searchResults);
-		//console.log(node);
 		if (node.isImage) {
 			nodeEl.append('<div class="wrap"><img class="thumbnail" src="/' + node.id + '"></div>');
 		}
@@ -2088,7 +1915,6 @@ var _Crud = {
 	displayName: function(node) {
 		var displayName;
 		if (node.isContent && node.content) {
-			//displayName = $(node.content).text().substring(0, 100);
 			displayName = escapeTags(node.content.substring(0, 100));
 		} else {
 			displayName = node.name || node.id || node;
@@ -2284,7 +2110,6 @@ var _Crud = {
 	appendRowAsCSV: function(type, item, textArea) {
 		var keys = Object.keys(_Crud.keys[type]);
 		if (keys) {
-			//console.log(type);
 			$.each(keys, function(k, key) {
 				textArea.append('"' + nvl(item[key], '') + '"');
 				if (k < keys.length - 1) {
@@ -2302,7 +2127,6 @@ var _Crud = {
 			dialogText.empty();
 			dialogMsg.empty();
 			dialogMeta.empty();
-			//dialogBtn.empty();
 
 			if (text) {
 				dialogTitle.html(text);
@@ -2343,8 +2167,6 @@ var _Crud = {
 			var l = parseInt((w - dw) / 2);
 			var t = parseInt((h - dh) / 2);
 
-			//console.log(w, h, dw, dh, l, t);
-
 			$.blockUI({
 				fadeIn: 25,
 				fadeOut: 25,
@@ -2384,8 +2206,6 @@ var _Crud = {
 		// Calculate dimensions of dialog
 		var dw = Math.min(900, w - ml);
 		var dh = Math.min(600, h - mt);
-		//            var dw = (w-24) + 'px';
-		//            var dh = (h-24) + 'px';
 
 		var l = parseInt((w - dw) / 2);
 		var t = parseInt((h - dh) / 2);
@@ -2407,11 +2227,6 @@ var _Crud = {
 		$('#dialogBox .dialogTextWrapper').css({
 			width: bw,
 			height: bh
-		});
-
-		$('#resourceTabs .resourceBox table').css({
-			height: h - ($('#resourceTabsMenu').height() + 225) + 'px',
-			width:  w - 59 + 'px'
 		});
 
 		$('.searchResults').css({
@@ -2438,20 +2253,13 @@ var _Crud = {
 
 		if (!dialogBox.is(':visible')) {
 			if (n) {
-				//console.log('Edit node', node);
-				_Crud.dialog('Details of ' + type + ' ' + (n.name ? n.name : n.id) + '<span class="id"> [' + n.id + ']</span>', function() {
-				}, function() {
-				});
+				_Crud.dialog('Details of ' + type + ' ' + (n.name ? n.name : n.id) + '<span class="id"> [' + n.id + ']</span>', function() {}, function() {});
 			} else {
-				//console.log('Create new node of type', typeOnCreate);
-				_Crud.dialog('Create new ' + type, function() {
-				}, function() {
-				});
+				_Crud.dialog('Create new ' + type, function() {}, function() {});
 			}
 		}
 		var view = _Crud.view[type] || 'ui';
 
-		// load details
 		$.ajax({
 			url: rootUrl + n.id + '/' + view,
 			type: 'GET',
@@ -2474,7 +2282,7 @@ var _Crud = {
 					});
 				}
 
-				dialogText.html('<table class="props" id="details_' + node.id + '"><tr><th>Name</th><th>Value</th>');//<th>Type</th><th>Read Only</th></table>');
+				dialogText.html('<table class="props" id="details_' + node.id + '"><tr><th>Name</th><th>Value</th>');
 
 				var table = $('table', dialogText);
 
@@ -2483,16 +2291,12 @@ var _Crud = {
 					keys = Object.keys(_Crud.keys[type]);
 				}
 
-//				if (!keys) {
-//					keys = Object.keys(typeDef.views[_Crud.view[type]]);
-//				}
-
 				if (!keys) {
 					keys = Object.keys(node);
 				}
 
 				$.each(keys, function(i, key) {
-					table.append('<tr><td class="key"><label for="' + key + '">' + _Crud.formatKey(key) + '</label></td><td class="__value ___' + key + '"></td>');//<td>' + type + '</td><td>' + property.readOnly + '</td></tr>');
+					table.append('<tr><td class="key"><label for="' + key + '">' + key + '</label></td><td class="__value ___' + key + '"></td>');
 					var cell = $('.___' + key, table);
 					if (_Crud.isCollection(key, type)) {
 						_Crud.appendPerCollectionPager(cell.prev('td'), type, key, function() {
@@ -2518,27 +2322,18 @@ var _Crud = {
 
 		var type = typeParam || node.type;
 		if (!type) {
-			Structr.error('Missing type', function() {
-			}, function() {
-			});
+			Structr.error('Missing type', function() {}, function() {});
 			return;
 		}
-		var typeDef = _Crud.types[type]; console.log(typeDef);
+		var typeDef = _Crud.types[type];
 
 		if (!dialogBox.is(':visible')) {
 			if (node) {
-				//console.log('Edit node', node);
-				_Crud.dialog('Details of ' + type + ' ' + (node.name ? node.name : node.id) + '<span class="id"> [' + node.id + ']</span>', function() {
-				}, function() {
-				});
+				_Crud.dialog('Details of ' + type + ' ' + (node.name ? node.name : node.id) + '<span class="id"> [' + node.id + ']</span>', function() {}, function() {});
 			} else {
-				//console.log('Create new node of type', typeOnCreate);
-				_Crud.dialog('Create new ' + type, function() {
-				}, function() {
-				});
+				_Crud.dialog('Create new ' + type, function() {}, function() {});
 			}
 		}
-		//console.log('readonly', readonly);
 
 		dialogText.append('<form id="entityForm"><table class="props"><tr><th>Property Name</th><th>Value</th>');//<th>Type</th><th>Read Only</th></table></form>');
 
@@ -2554,10 +2349,9 @@ var _Crud = {
 				return;
 			}
 
-			table.append('<tr><td class="key"><label for="' + key + '">' + _Crud.formatKey(key) + '</label></td><td class="__value ___' + key + '"></td>');//<td>' + type + '</td><td>' + property.readOnly + '</td></tr>');
+			table.append('<tr><td class="key"><label for="' + key + '">' + key + '</label></td><td class="__value ___' + key + '"></td>');//<td>' + type + '</td><td>' + property.readOnly + '</td></tr>');
 			var cell = $('.___' + key, table);
 			if (node && node.id) {
-				//console.log(node.id, key, type, node[key], cell);
 				_Crud.populateCell(node.id, key, node.type, node[key], cell);
 			} else {
 				_Crud.populateCell(null, key, type, null, cell);
@@ -2582,21 +2376,6 @@ var _Crud = {
 		}
 
 	},
-	formatKey: function(text) {
-		return text;
-//		if (!text)
-//			return '';
-//		var result = '';
-//		for (var i = 0; i < text.length; i++) {
-//			var c = text.charAt(i);
-//			if (c === c.toUpperCase()) {
-//				result += ' ' + c;
-//			} else {
-//				result += (i === 0 ? c.toUpperCase() : c);
-//			}
-//		}
-//		return result;
-	},
 	filterKeys: function(type, sourceArray) {
 
 		if (!sourceArray) {
@@ -2619,12 +2398,11 @@ var _Crud = {
 		var result = sourceArray.filter(function(key) {
 			return !(filteredKeys.hasOwnProperty(key) && filteredKeys[key] === 0);
 		});
-		//console.log(type, sourceArray, result);
 		return result;
 	},
 	toggleColumn: function(type, key) {
 
-		var table = $('#' + type + ' table');
+		var table = $('#crud-right table');
 		var filterSource = LSWrapper.getItem(crudHiddenColumnsKey + type);
 		var filteredKeys = {};
 		if (filterSource) {

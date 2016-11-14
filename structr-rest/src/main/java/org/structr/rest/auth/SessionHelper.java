@@ -60,7 +60,7 @@ public class SessionHelper {
 
 			if (now > lastAccessed + Services.getGlobalSessionTimeout() * 1000) {
 
-				logger.info("Session {} timed out, last accessed at {}", new Object[]{session, Instant.ofEpochMilli(lastAccessed).toString()});
+				logger.info("Session {} timed out, last accessed at {}", new Object[]{session.getId(), Instant.ofEpochMilli(lastAccessed).toString()});
 				return true;
 			}
 
@@ -146,7 +146,7 @@ public class SessionHelper {
 
 		if (sessionIds != null && sessionIds.length > 0) {
 
-			for (String sessionId : user.getProperty(Principal.sessionIds)) {
+			for (String sessionId : sessionIds) {
 				final HttpSession session = sessionManager.getSession(sessionId);
 
 				if (session == null || SessionHelper.isSessionTimedOut(session)) {

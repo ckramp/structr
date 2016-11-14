@@ -44,11 +44,11 @@ var _Localization = {
 	onload: function() {
 		_Localization.init();
 
-		$('#main-help a').attr('href', 'https://support.structr.com/article/135');
+		Structr.updateMainHelpLink('https://support.structr.com/article/135');
 
 		main.append(
 			'<div id="localization-main">' +
-				'<div id="localizations-list" class="resourceBox">' +
+				'<div id="localizations-list" class="resourceBox full-height-box">' +
 					'<div id="localizations-pager"></div>' +
 					'<p><button class="create"><img src="' + _Icons.add_icon + '"> Prepare new Localization</button></p>' +
 					'<table id="localizations-table">' +
@@ -60,7 +60,7 @@ var _Localization = {
 						'<tbody></tbody>' +
 					'</table>' +
 				'</div>' +
-				'<div id="localization-detail" class="resourceBox">' +
+				'<div id="localization-detail" class="resourceBox full-height-box">' +
 					'<strong>Key:</strong> <input id="localization-key" class="disabled" disabled /> <strong>Domain:</strong> <input id="localization-domain" class="disabled" disabled />' +
 					' <a title="Edit" class="edit" id="localization-fields-edit"><img alt="Edit Icon" src="' + _Icons.edit_icon + '"></a>' +
 					' <a title="Save" class="save" id="localization-fields-save"><img alt="Save" src="' + _Icons.tick_icon + '"></a>' +

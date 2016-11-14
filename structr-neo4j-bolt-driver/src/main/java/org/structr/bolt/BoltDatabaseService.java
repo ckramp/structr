@@ -72,6 +72,7 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	private static final Map<String, RelationshipType> relTypeCache   = new ConcurrentHashMap<>();
 	private static final Map<String, Label> labelCache                = new ConcurrentHashMap<>();
 	private static final ThreadLocal<SessionTransaction> sessions     = new ThreadLocal<>();
+	private Properties globalGraphProperties                          = null;
 	private CypherRelationshipIndex relationshipIndex                 = null;
 	private CypherNodeIndex nodeIndex                                 = null;
 	private GraphDatabaseService graphDb                              = null;
@@ -128,6 +129,15 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 			AuthTokens.basic(username, password),
 			Config.build().withEncryptionLevel(Config.EncryptionLevel.NONE).toConfig()
 		);
+
+		final int relCacheSize  = Integer.valueOf(configuration.getProperty(Structr.RELATIONSHIP_CACHE_SIZE, "100000"));
+		final int nodeCacheSize = Integer.valueOf(configuration.getProperty(Structr.NODE_CACHE_SIZE, "100000"));
+
+		NodeWrapper.initialize(nodeCacheSize);
+		logger.info("Node cache size set to {}", nodeCacheSize);
+
+		RelationshipWrapper.initialize(relCacheSize);
+		logger.info("Relationship cache size set to {}", relCacheSize);
 	}
 
 	@Override
@@ -286,34 +296,41 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	@Override
 	public void setProperty(final String name, final Object value) {
 
-		final Properties properties = new Properties();
-		final File propertiesFile   = new File(databasePath + "/graph.properties");
+		final Properties properties = getProperties();
+		boolean hasChanges          = false;
 
-		try (final Reader reader = new FileReader(propertiesFile)) {
-			properties.load(reader);
-		} catch (IOException ioex) {}
+		if (value == null) {
 
-		properties.setProperty(name, value.toString());
+			if (properties.containsKey(name)) {
 
-		try (final Writer writer = new FileWriter(propertiesFile)) {
-			properties.store(writer, "Created by Structr at " + new Date());
-		} catch (IOException ioex) {
-			ioex.printStackTrace();
-			logger.warn("Unable to write properties file");
+				properties.remove(name);
+				hasChanges = true;
+			}
+
+		} else {
+
+			properties.setProperty(name, value.toString());
+			hasChanges = true;
+		}
+
+		if (hasChanges) {
+
+			final File propertiesFile   = new File(databasePath + "/graph.properties");
+
+			try (final Writer writer = new FileWriter(propertiesFile)) {
+
+				properties.store(writer, "Created by Structr at " + new Date());
+
+			} catch (IOException ioex) {
+
+				logger.warn("Unable to write properties file", ioex);
+			}
 		}
 	}
 
 	@Override
 	public Object getProperty(final String name) {
-
-		final Properties properties = new Properties();
-		final File propertiesFile   = new File(databasePath + "/graph.properties");
-
-		try (final Reader reader = new FileReader(propertiesFile)) {
-			properties.load(reader);
-		} catch (IOException ioex) {}
-
-		return properties.getProperty(name);
+		return getProperties().getProperty(name);
 	}
 
 	@Override
@@ -346,6 +363,23 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	}
 
 	// ----- private methods -----
+	private Properties getProperties() {
+
+		if (globalGraphProperties == null) {
+
+			globalGraphProperties = new Properties();
+			final File propertiesFile   = new File(databasePath + "/graph.properties");
+
+			try (final Reader reader = new FileReader(propertiesFile)) {
+
+				globalGraphProperties.load(reader);
+
+			} catch (IOException ioex) {}
+		}
+
+		return globalGraphProperties;
+	}
+
 	private boolean handleMigration(final Throwable t) {
 
 		final List<String> messages = collectMessages(t);

@@ -41,6 +41,7 @@ import org.structr.api.search.RangeQuery;
 import org.structr.api.search.SpatialQuery;
 import org.structr.api.search.TypeConverter;
 import org.structr.api.search.TypeQuery;
+import org.structr.api.search.UuidQuery;
 import org.structr.bolt.*;
 import org.structr.bolt.index.converter.BooleanTypeConverter;
 import org.structr.bolt.index.converter.DateTypeConverter;
@@ -57,6 +58,7 @@ import org.structr.bolt.index.factory.QueryFactory;
 import org.structr.bolt.index.factory.RangeQueryFactory;
 import org.structr.bolt.index.factory.SpatialQueryFactory;
 import org.structr.bolt.index.factory.TypeQueryFactory;
+import org.structr.bolt.index.factory.UuidQueryFactory;
 
 /**
  *
@@ -83,6 +85,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 		FACTORIES.put(ArrayQuery.class,    new ArrayQueryFactory());
 		FACTORIES.put(EmptyQuery.class,    new EmptyQueryFactory());
 		FACTORIES.put(TypeQuery.class,     new TypeQueryFactory());
+		FACTORIES.put(UuidQuery.class,     new UuidQueryFactory());
 
 		CONVERTERS.put(Boolean.class, new BooleanTypeConverter());
 		CONVERTERS.put(String.class,  new StringTypeConverter());
