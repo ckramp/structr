@@ -74,6 +74,7 @@ import org.structr.core.graph.NodeAttribute;
 import org.structr.core.graph.Tx;
 import org.structr.core.property.BooleanProperty;
 import org.structr.core.property.PropertyKey;
+import org.structr.core.property.PropertyMap;
 import org.structr.core.property.StringProperty;
 import org.structr.dynamic.File;
 import org.structr.rest.common.HttpHelper;
@@ -99,6 +100,7 @@ import org.structr.web.entity.dom.Page;
 import org.structr.web.entity.dom.Template;
 import org.structr.web.entity.html.Body;
 import org.structr.web.entity.html.Head;
+import org.structr.web.maintenance.DeployCommand;
 
 //~--- classes ----------------------------------------------------------------
 /**
@@ -137,11 +139,8 @@ public class Importer {
 	private final boolean publicVisible;
 	private final boolean authVisible;
 	private CommentHandler commentHandler;
-	private boolean processComment  = false;
 	private boolean isDeployment    = false;
 	private Document parsedDocument = null;
-	private DOMNode lastCommentNode = null;
-	private String lastComment;
 	private final String name;
 	private URL originalUrl;
 	private String address;
@@ -242,6 +241,9 @@ public class Importer {
 
 				if (isDeployment) {
 
+					// a trailing slash to all void/self-closing tags so the XML parser can parse it correctly
+					code = code.replaceAll("<(area|base|br|col|command|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)([^>]*)>", "<$1$2/>");
+
 					parsedDocument = Jsoup.parse(code, "", Parser.xmlParser());
 
 				} else {
@@ -275,8 +277,11 @@ public class Importer {
 		Page page = Page.createNewPage(securityContext, uuid, name);
 		if (page != null) {
 
-			page.setProperty(AbstractNode.visibleToAuthenticatedUsers, authVisible);
-			page.setProperty(AbstractNode.visibleToPublicUsers, publicVisible);
+			final PropertyMap changedProperties = new PropertyMap();
+			changedProperties.put(AbstractNode.visibleToAuthenticatedUsers, authVisible);
+			changedProperties.put(AbstractNode.visibleToPublicUsers, publicVisible);
+			page.setProperties(securityContext, changedProperties);
+
 			createChildNodes(parsedDocument, page, page);
 
 			if (!isDeployment) {
@@ -318,12 +323,12 @@ public class Importer {
 
 	public void createChildNodes(final DOMNode parent, final Page page, final boolean removeHashAttribute) throws FrameworkException {
 
-		createChildNodes(parsedDocument.body(), parent, page, removeHashAttribute);
+		createChildNodes(parsedDocument.body(), parent, page, removeHashAttribute, 0);
 	}
 
 	public void createChildNodesWithHtml(final DOMNode parent, final Page page, final boolean removeHashAttribute) throws FrameworkException {
 
-		createChildNodes(parsedDocument, parent, page, removeHashAttribute);
+		createChildNodes(parsedDocument, parent, page, removeHashAttribute, 0);
 	}
 
 	public void importDataComments() throws FrameworkException {
@@ -517,13 +522,14 @@ public class Importer {
 
 	// ----- private methods -----
 	private DOMNode createChildNodes(final Node startNode, final DOMNode parent, final Page page) throws FrameworkException {
-		return createChildNodes(startNode, parent, page, false);
+		return createChildNodes(startNode, parent, page, false, 0);
 	}
 
-	private DOMNode createChildNodes(final Node startNode, final DOMNode parent, final Page page, final boolean removeHashAttribute) throws FrameworkException {
+	private DOMNode createChildNodes(final Node startNode, final DOMNode parent, final Page page, final boolean removeHashAttribute, final int depth) throws FrameworkException {
 
-		DOMNode rootElement = null;
-		Linkable res        = null;
+		DOMNode rootElement     = null;
+		Linkable res            = null;
+		String instructions     = null;
 
 		final List<Node> children = startNode.childNodes();
 		for (Node node : children) {
@@ -569,7 +575,6 @@ public class Importer {
 
 						String downloadAddress = node.attr(downloadAddressAttr);
 						res = downloadFile(downloadAddress, originalUrl);
-
 					}
 				}
 
@@ -577,18 +582,14 @@ public class Importer {
 
 					// Remove data-structr-hash attribute
 					node.removeAttr(DOMNode.dataHashProperty.jsonName());
-
 				}
-
 			}
 
 			// Data and comment nodes: Trim the text and put it into the "content" field without changes
 			if (type.equals("#comment")) {
 
-				comment         = ((Comment) node).getData();
-				processComment  = false; // do not process the comment until next node
-				lastComment     = comment;
-				tag             = "";
+				comment = ((Comment) node).getData();
+				tag     = "";
 
 				// Don't add content node for whitespace
 				if (StringUtils.isBlank(comment)) {
@@ -598,6 +599,13 @@ public class Importer {
 
 				// store for later use
 				commentSource.append(comment).append("\n");
+
+				// check if comment contains instructions
+				if (commentHandler != null && commentHandler.containsInstructions(comment)) {
+
+					instructions = comment;
+					continue;
+				}
 
 			} else if (type.equals("#data")) {
 
@@ -636,9 +644,6 @@ public class Importer {
 					newNode = (DOMNode) page.createComment(comment);
 					newNode.setProperty(org.structr.web.entity.dom.Comment.contentType, "text/html");
 
-					// allow deletion of comment nodes that contain @structr instructions
-					lastCommentNode = newNode;
-
 				} else {
 
 					newNode = (Content) page.createTextNode(content);
@@ -649,12 +654,29 @@ public class Importer {
 				final String src = node.attr("src");
 				if (src != null) {
 
-					final DOMNode template = Importer.findTemplateByName(src);
+					final DOMNode template;
+
+					if (DeployCommand.isUuid(src)) {
+
+						template = (DOMNode) StructrApp.getInstance().get(src);
+
+					} else {
+
+						template = Importer.findTemplateByName(src);
+					}
+
 					if (template != null) {
 
 						newNode = template;
 
-						if (page != null) {
+						if (template.isSharedComponent()) {
+
+							newNode = (DOMNode) template.cloneNode(false);
+							newNode.setProperty(DOMNode.sharedComponent, template);
+							newNode.setProperty(DOMNode.ownerDocument, page);
+
+						} else if (page != null) {
+
 							newNode.setProperty(DOMNode.ownerDocument, page);
 						}
 
@@ -673,7 +695,16 @@ public class Importer {
 				final String src = node.attr("src");
 				if (src != null) {
 
-					final DOMNode component = Importer.findSharedComponentByName(src);
+					DOMNode component = null;
+					if (DeployCommand.isUuid(src)) {
+
+						component = app.get(DOMNode.class, src);
+
+					} else {
+
+						component = Importer.findSharedComponentByName(src);
+					}
+
 					if (component != null) {
 
 						newNode = (DOMNode) component.cloneNode(false);
@@ -689,7 +720,6 @@ public class Importer {
 
 					logger.warn("Invalid component definition, missing src attribute!");
 				}
-
 
 			} else {
 
@@ -845,38 +875,35 @@ public class Importer {
 					}
 				}
 
-				// let comment handler process newly created node
-				// (allow special comments to modify node)
-				if (processComment && commentHandler != null && StringUtils.isNotBlank(lastComment)) {
+				if (instructions != null) {
 
-					if (commentHandler.handleComment(page, newNode, lastComment)) {
+					if (commentHandler != null) {
 
-						if (lastCommentNode != null) {
-
-							// remove comment node from parent (if there is a parent)
-							if (parent != null) {
-								parent.removeChild(lastCommentNode);
-							}
-							app.delete(lastCommentNode);
-						}
+						commentHandler.handleComment(page, newNode, instructions, true);
 					}
 
-					// clear comment fields
-					lastCommentNode = null;
-					lastComment     = null;
+					instructions = null;
 				}
-
-				// We enable processing of special Structr comments for the next loop
-				// here, to prevent the actual #comment node from receiving modifications
-				// that are meant for the following node.
-				processComment = true;
 
 				// Link new node to its parent node
 				// linkNodes(parent, newNode, page, localIndex);
 				// Step down and process child nodes
-				createChildNodes(node, newNode, page, removeHashAttribute);
-
+				createChildNodes(node, newNode, page, removeHashAttribute, depth + 1);
 			}
+		}
+
+		// reset instructions when leaving a level
+		if (instructions != null) {
+
+			final Content contentNode = (Content)page.createTextNode("");
+			parent.appendChild(contentNode);
+			
+			if (commentHandler != null) {
+
+				commentHandler.handleComment(page, contentNode, instructions, true);
+			}
+
+			instructions = null;
 		}
 
 		return rootElement;

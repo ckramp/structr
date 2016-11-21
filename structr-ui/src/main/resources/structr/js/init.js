@@ -188,7 +188,7 @@ var _Icons = {
 	delete_disabled_icon: 'icon/delete_gray.png',
 	delete_brick_icon: 'icon/brick_delete.png',
 	edit_icon: 'icon/pencil.png',
-	edit_ui_properties_icon: 'icon/wrench.png',
+	wrench_icon: 'icon/wrench.png',
 	collapsed_icon: 'icon/tree_arrow_right.png',
 	expanded_icon: 'icon/tree_arrow_down.png',
 	link_icon: 'icon/link.png',
@@ -256,7 +256,109 @@ var _Icons = {
 	star_icon: 'icon/star.png',
 	star_delete_icon: 'icon/star_delete.png',
 	image_icon: 'icon/image.png',
-	arrow_up_down: 'icon/arrow_up_down.png'
+	arrow_up_down: 'icon/arrow_up_down.png',
+
+
+	getImageIcon: function(image) {
+
+		return (image.contentType.startsWith('image/svg') ? image.path : (image.tnSmall ? image.tnSmall.path : _Icons.image_icon));
+
+	},
+
+	getFileIconClass: function(file) {
+
+		var fileName = file.name;
+		var contentType = file.contentType;
+
+		var result = 'fa-file-o';
+
+		if (contentType) {
+
+			switch (contentType) {
+
+				case 'text/plain':
+					result = 'fa-file-text-o';
+					break;
+
+				case 'application/pdf':
+				case 'application/postscript':
+					result = 'fa-file-pdf-o';
+					break;
+
+				case 'application/x-pem-key':
+				case 'application/pkix-cert+pem':
+				case 'application/x-iwork-keynote-sffkey':
+					result = 'fa-key';
+					break;
+
+				case 'application/x-trash':
+					result = 'fa-trash-o';
+					break;
+
+				case 'application/octet-stream':
+					result = 'fa-terminal';
+					break;
+
+				case 'application/x-shellscript':
+				case 'application/javascript':
+				case 'application/xml':
+				case 'text/html':
+				case 'text/xml':
+					result = 'fa-file-code-o';
+					break;
+
+				case 'application/java-archive':
+				case 'application/zip':
+				case 'application/rar':
+				case 'application/x-bzip':
+					result = 'fa-file-archive-o';
+					break;
+
+				case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+				case 'application/vnd.oasis.opendocument.text':
+				case 'application/msword':
+					result = 'fa-file-word-o';
+					break;
+
+				case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+				case 'application/vnd.oasis.opendocument.spreadsheet':
+				case 'application/vnd.ms-excel':
+					result = 'fa-file-excel-o';
+					break;
+
+				case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+					result = 'fa-file-powerpoint-o';
+					break;
+
+				case 'image/jpeg':
+					result = 'fa-picture-o';
+					break;
+
+				case 'application/vnd.oasis.opendocument.chart':
+					result = 'fa-line-chart';
+					break;
+
+				default:
+					if (contentType.startsWith('image/')) {
+						result = 'fa-file-image-o';
+					} else if (contentType.startsWith('text/')) {
+						result = 'fa-file-text-o';
+					}
+			}
+
+			if (fileName && fileName.contains('.')) {
+
+				var fileExtensionPosition = fileName.lastIndexOf('.') + 1;
+				var fileExtension = fileName.substring(fileExtensionPosition);
+
+				// add file extension css class to control colors
+				result = fileExtension + ' ' + result;
+			}
+		}
+
+		return result;
+	}
+
 };
 
 var Structr = {
@@ -1257,6 +1359,67 @@ var Structr = {
 	},
 	updateMainHelpLink: function (newUrl) {
 		$('#main-help a').attr('href', newUrl);
+	}
+};
+
+var _TreeHelper = {
+	initTree: function (tree, initFunction, stateKey) {
+		tree.jstree({
+			plugins: ["themes", "dnd", "search", "state", "types", "wholerow"],
+			core: {
+				animation: 0,
+				state: {
+					key: stateKey
+				},
+				async: true,
+				data: initFunction
+			}
+		});
+	},
+	deepOpen: function(tree, element, parentElements, parentKey, selectedNode) {
+		if (element && element.id) {
+
+			parentElements = parentElements || [];
+			parentElements.unshift(element);
+
+			Command.get(element.id, function(loadedElement) {
+				if (loadedElement && loadedElement[parentKey]) {
+					_TreeHelper.deepOpen(tree, loadedElement[parentKey], parentElements, selectedNode);
+				} else {
+					_TreeHelper.open(tree, parentElements, selectedNode);
+				}
+			});
+		}
+	},
+	open: function(tree, dirs, selectedNode) {
+		if (dirs.length) {
+			var d = dirs.shift();
+			tree.jstree('deselect_node', d.id);
+			tree.jstree('open_node', d.id, function() {
+				tree.jstree('select_node', selectedNode);
+			});
+		}
+	},
+	refreshTree: function(tree, callback) {
+		tree.jstree('refresh');
+
+		if (typeof callback === "function") {
+			window.setTimeout(function() {
+				callback();
+			}, 500);
+		}
+	},
+	makeDroppable: function (tree, list) {
+		window.setTimeout(function() {
+			list.forEach(function(obj) {
+				StructrModel.create({id: obj.id}, null, false);
+				_TreeHelper.makeTreeElementDroppable(tree, obj.id);
+			});
+		}, 500);
+	},
+	makeTreeElementDroppable: function (tree, id) {
+		var el = $('#' + id + ' > .jstree-wholerow', tree);
+		_Dragndrop.makeDroppable(el);
 	}
 };
 

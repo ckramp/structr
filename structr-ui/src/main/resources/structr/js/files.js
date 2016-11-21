@@ -188,11 +188,8 @@ var _Files = {
 		$.jstree.defaults.dnd.large_drop_target = true;
 
 		fileTree.on('ready.jstree', function() {
-			var rootEl = $('#root > .jstree-wholerow');
-			_Dragndrop.makeDroppable(rootEl);
-
-			var favEl = $('#favorites > .jstree-wholerow');
-			_Dragndrop.makeDroppable(favEl);
+			_TreeHelper.makeTreeElementDroppable(fileTree, 'root');
+			_TreeHelper.makeTreeElementDroppable(fileTree, 'favorites');
 
 			_Files.loadAndSetWorkingDir(function() {
 
@@ -224,7 +221,7 @@ var _Files = {
 			} else {
 
 				if (data.node.id === 'root') {
-					_Files.deepOpen(currentWorkingDir, []);
+					_Files.deepOpen(currentWorkingDir);
 				}
 
 				_Files.setWorkingDirectory(data.node.id);
@@ -234,7 +231,7 @@ var _Files = {
 
 		});
 
-		_Files.initTree();
+		_TreeHelper.initTree(fileTree, _Files.treeInitFunction, 'structr-ui-filesystem');
 
 		_Files.activateUpload();
 
@@ -250,88 +247,56 @@ var _Files = {
 
 	},
 	deepOpen: function(d, dirs) {
-		dirs = dirs || [];
-		if (d && d.id) {
-			dirs.unshift(d);
-			Command.get(d.id, function(dir) {
-				if (dir && dir.parent) {
-					_Files.deepOpen(dir.parent, dirs);
-				} else {
-					_Files.open(dirs);
-				}
-			});
-		}
-	},
-	open: function(dirs) {
-		if (!dirs.length) return;
-		var d = dirs.shift();
-		fileTree.jstree('deselect_node', d.id);
-		fileTree.jstree('open_node', d.id, function() {
-			fileTree.jstree('select_node', currentWorkingDir ? currentWorkingDir.id : 'root');
-		});
+
+		_TreeHelper.deepOpen(fileTree, d, dirs, 'parent', (currentWorkingDir ? currentWorkingDir.id : 'root'));
 
 	},
 	refreshTree: function() {
-		//$.jstree.destroy();
-		fileTree.jstree('refresh');
-		window.setTimeout(function() {
-			var rootEl = $('#root > .jstree-wholerow');
-			_Dragndrop.makeDroppable(rootEl);
 
-			var favEl = $('#favorites > .jstree-wholerow');
-			_Dragndrop.makeDroppable(favEl);
-
-		}, 500);
-	},
-	initTree: function() {
-		//$.jstree.destroy();
-		fileTree.jstree({
-			plugins: ["themes", "dnd", "search", "state", "types", "wholerow"],
-			core: {
-				animation: 0,
-				state: { key: 'structr-ui-filesystem' },
-				async: true,
-				data: function(obj, callback) {
-
-					switch (obj.id) {
-
-						case '#':
-
-							var defaultFilesystemEntries = [
-								{
-									id: 'favorites',
-									text: 'Favorite Files',
-									children: false,
-									icon: _Icons.star_icon
-								},
-								{
-									id: 'root',
-									text: '/',
-									children: true,
-									icon: _Icons.structr_logo_small,
-									path: '/',
-									state: {
-										opened: true,
-										selected: true
-									}
-								}
-							];
-
-							callback(defaultFilesystemEntries);
-
-							break;
-
-						case 'root':
-							_Files.load(null, callback);
-							break;
-
-						default:
-							_Files.load(obj.id, callback);
-							break;
-					}
-				}
-			}
+		_TreeHelper.refreshTree(fileTree, function() {
+			_TreeHelper.makeTreeElementDroppable(fileTree, 'root');
+			_TreeHelper.makeTreeElementDroppable(fileTree, 'favorites');
 		});
+
+	},
+	treeInitFunction: function(obj, callback) {
+
+		switch (obj.id) {
+
+			case '#':
+
+				var defaultFilesystemEntries = [
+					{
+						id: 'favorites',
+						text: 'Favorite Files',
+						children: false,
+						icon: _Icons.star_icon
+					},
+					{
+						id: 'root',
+						text: '/',
+						children: true,
+						icon: _Icons.structr_logo_small,
+						path: '/',
+						state: {
+							opened: true,
+							selected: true
+						}
+					}
+				];
+
+				callback(defaultFilesystemEntries);
+				break;
+
+			case 'root':
+				_Files.load(null, callback);
+				break;
+
+			default:
+				_Files.load(obj.id, callback);
+				break;
+		}
+
 	},
 	unload: function() {
 		fastRemoveAllChildren($('.searchBox', main));
@@ -491,13 +456,7 @@ var _Files = {
 
 			callback(list);
 
-			window.setTimeout(function() {
-				list.forEach(function(obj) {
-					var el = $('#file-tree #' + obj.id + ' > .jstree-wholerow');
-					StructrModel.create({id: obj.id}, null, false);
-					_Dragndrop.makeDroppable(el);
-				});
-			}, 500);
+			_TreeHelper.makeDroppable(fileTree, list);
 
 		};
 
@@ -690,7 +649,7 @@ var _Files = {
 		var files = d.files || [];
 		var folders = d.folders || [];
 		var size = d.isFolder ? folders.length + files.length : (d.size ? d.size : '-');
-		var icon = d.isFolder ? 'fa-folder' : _Files.getIcon(d);
+		var icon = d.isFolder ? 'fa-folder' : _Icons.getFileIconClass(d);
 
 		if (viewMode === 'list') {
 
@@ -1199,29 +1158,30 @@ var _Files = {
 
 		});
 
-		//console.log('Search string:', searchString, url);
-
 		$.ajax({
 			url: url,
 			statusCode: {
 				200: function(data) {
 
-					//console.log(data.result);
-
 					if (!data.result || data.result.length === 0) {
+
 						container.append('<h1>No results for "' + searchString + '"</h1>');
 						container.append('<h2>Press ESC or click <a href="#filesystem" class="clear-results">here to clear</a> empty result list.</h2>');
 						$('.clear-results', container).on('click', function() {
 							_Files.clearSearch();
 						});
+
 						return;
+
 					} else {
+
 						container.append('<h1>' + data.result.length + ' search results:</h1><table class="props"><thead><th class="_type">Type</th><th>Name</th><th>Size</th></thead><tbody></tbody></table>');
 						data.result.forEach(function(d) {
-							var icon = _Files.getIcon(d);
-							$('tbody', container).append('<tr><td><i class="fa ' + icon + '"></i> ' + d.type + (d.isFile && d.contentType ? ' (' + d.contentType + ')' : '') + '</td><td><a href="#results' + d.id + '">' + d.name + '</a></td><td>' + d.size + '</td></tr>');
+
+							$('tbody', container).append('<tr><td><i class="fa ' + _Icons.getFileIconClass(d) + '"></i> ' + d.type + (d.isFile && d.contentType ? ' (' + d.contentType + ')' : '') + '</td><td><a href="#results' + d.id + '">' + d.name + '</a></td><td>' + d.size + '</td></tr>');
 
 						});
+
 					}
 
 					data.result.forEach(function(d) {
@@ -1234,16 +1194,15 @@ var _Files = {
 							statusCode: {
 								200: function(data) {
 
-									if (!data.result) return;
-
-									//console.log(data.result);
+									if (!data.result) {
+										return;
+									}
 
 									container.append('<div class="search-result collapsed" id="results' + d.id + '"></div>');
 
 									var div = $('#results' + d.id);
-									var icon = _Files.getIcon(d);
-									//div.append('<h2><img id="preview' + d.id + '" src="' + icon + '" style="margin-left: 6px;" title="' + d.extractedContent + '" />' + d.path + '</h2>');
-									div.append('<h2><i class="fa ' + icon + '"></i> ' + d.name + '<img id="preview' + d.id + '" src="' + _Icons.eye_icon + '" style="margin-left: 6px;" title="' + d.extractedContent + '" /></h2>');
+
+									div.append('<h2><i class="fa ' + _Icons.getFileIconClass(d) + '"></i> ' + d.name + '<img id="preview' + d.id + '" src="' + _Icons.eye_icon + '" style="margin-left: 6px;" title="' + d.extractedContent + '" /></h2>');
 									div.append('<i class="toggle-height fa fa-expand"></i>').append('<i class="go-to-top fa fa-chevron-up"></i>');
 
 									$('.toggle-height', div).on('click', function() {
@@ -1284,99 +1243,6 @@ var _Files = {
 			}
 
 		});
-	},
-	getIcon: function(file) {
-
-		var fileName = file.name;
-		var contentType = file.contentType;
-
-		var result = 'fa-file-o';
-
-		if (contentType) {
-
-			switch (contentType) {
-
-				case 'text/plain':
-					result = 'fa-file-text-o';
-					break;
-
-				case 'application/pdf':
-				case 'application/postscript':
-					result = 'fa-file-pdf-o';
-					break;
-
-				case 'application/x-pem-key':
-				case 'application/pkix-cert+pem':
-				case 'application/x-iwork-keynote-sffkey':
-					result = 'fa-key';
-					break;
-
-				case 'application/x-trash':
-					result = 'fa-trash-o';
-					break;
-
-				case 'application/octet-stream':
-					result = 'fa-terminal';
-					break;
-
-				case 'application/x-shellscript':
-				case 'application/javascript':
-				case 'application/xml':
-				case 'text/html':
-				case 'text/xml':
-					result = 'fa-file-code-o';
-					break;
-
-				case 'application/java-archive':
-				case 'application/zip':
-				case 'application/rar':
-				case 'application/x-bzip':
-					result = 'fa-file-archive-o';
-					break;
-
-				case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-				case 'application/vnd.oasis.opendocument.text':
-				case 'application/msword':
-					result = 'fa-file-word-o';
-					break;
-
-				case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-				case 'application/vnd.oasis.opendocument.spreadsheet':
-				case 'application/vnd.ms-excel':
-					result = 'fa-file-excel-o';
-					break;
-
-				case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
-					result = 'fa-file-powerpoint-o';
-					break;
-
-				case 'image/jpeg':
-					result = 'fa-picture-o';
-					break;
-
-				case 'application/vnd.oasis.opendocument.chart':
-					result = 'fa-line-chart';
-					break;
-
-				default:
-					if (contentType.startsWith('image/')) {
-						result = 'fa-file-image-o';
-					} else if (contentType.startsWith('text/')) {
-						result = 'fa-file-text-o';
-					}
-			}
-
-			if (fileName && fileName.contains('.')) {
-
-				var fileExtensionPosition = fileName.lastIndexOf('.') + 1;
-				var fileExtension = fileName.substring(fileExtensionPosition);
-
-				// add file extension css class to control colors
-				result = fileExtension + ' ' + result;
-			}
-		}
-
-		return result;
 	},
 	updateTextFile: function(file, text) {
 		var chunks = Math.ceil(text.length / chunkSize);
@@ -1456,19 +1322,15 @@ var _Files = {
 					editor.refresh();
 				});
 
-				dialogBtn.append('<button id="saveFile" disabled="disabled" class="disabled"> Save </button>');
-				dialogBtn.append('<button id="saveAndClose" disabled="disabled" class="disabled"> Save and close</button>');
+				dialogBtn.append('<button id="saveFile" disabled="disabled" class="disabled">Save</button>');
+				dialogBtn.append('<button id="saveAndClose" disabled="disabled" class="disabled">Save and close</button>');
 
 				dialogSaveButton = $('#saveFile', dialogBtn);
 				saveAndClose = $('#saveAndClose', dialogBtn);
 
-				text1 = text;
-
 				editor.on('change', function(cm, change) {
 
-					text2 = editor.getValue();
-
-					if (text2 === data) {
+					if (text === editor.getValue()) {
 						dialogSaveButton.prop("disabled", true).addClass('disabled');
 						saveAndClose.prop("disabled", true).addClass('disabled');
 					} else {
@@ -1477,23 +1339,15 @@ var _Files = {
 					}
 				});
 
-				if (text1 === data) {
-					dialogSaveButton.prop("disabled", true).addClass('disabled');
-					saveAndClose.prop("disabled", true).addClass('disabled');
-				} else {
-					dialogSaveButton.prop("disabled", false).removeClass('disabled');
-					saveAndClose.prop("disabled", false).removeClass('disabled');
-				}
-
 				$('button#saveFile', dialogBtn).on('click', function(e) {
 					e.preventDefault();
 					e.stopPropagation();
 					var newText = editor.getValue();
-					if (data === newText) {
+					if (text === newText) {
 						return;
 					}
 					_Files.updateTextFile(file, newText);
-					text1 = newText;
+					text = newText;
 					dialogSaveButton.prop("disabled", true).addClass('disabled');
 					saveAndClose.prop("disabled", true).addClass('disabled');
 				});

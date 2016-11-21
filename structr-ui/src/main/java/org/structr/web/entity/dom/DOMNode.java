@@ -115,6 +115,7 @@ import org.structr.web.function.SetResponseHeaderFunction;
 import org.structr.web.function.SetSessionAttributeFunction;
 import org.structr.web.function.StripHtmlFunction;
 import org.structr.web.function.ToJsonFunction;
+import org.structr.websocket.command.CreateComponentCommand;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -254,29 +255,6 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 		return idHash;
 	}
 
-	/**
-	 * This method will be called by the DOM logic when this node gets a new child. Override this method if you need to set properties on the child depending on its type etc.
-	 *
-	 * @param newChild
-	 */
-	protected void handleNewChild(Node newChild) {
-
-		final Page page = (Page)getOwnerDocument();
-
-		for (final DOMNode child : getAllChildNodes()) {
-
-			try {
-
-				child.setProperty(ownerDocument, page);
-
-			} catch (FrameworkException ex) {
-				logger.warn("", ex);
-			}
-
-		}
-
-	}
-
 	@Override
 	public Class<DOMChildren> getChildLinkType() {
 		return DOMChildren.class;
@@ -286,6 +264,25 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 	public Class<DOMSiblings> getSiblingLinkType() {
 		return DOMSiblings.class;
 	}
+
+	public boolean isSharedComponent() {
+
+		final Document _ownerDocument = getOwnerDocumentAsSuperUser();
+		if (_ownerDocument != null) {
+
+			try {
+
+				return _ownerDocument.equals(CreateComponentCommand.getOrCreateHiddenDocument());
+
+			} catch (FrameworkException fex) {
+
+				logger.warn("Unable fetch ShadowDocument node: {}", fex.getMessage());
+			}
+		}
+
+		return false;
+	}
+
 
 	// ----- public methods -----
 	public List<DOMChildren> getChildRelationships() {
@@ -587,6 +584,29 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 	}
 
 	// ----- protected methods -----
+	/**
+	 * This method will be called by the DOM logic when this node gets a new child. Override this method if you need to set properties on the child depending on its type etc.
+	 *
+	 * @param newChild
+	 */
+	protected void handleNewChild(Node newChild) {
+
+		final Page page = (Page)getOwnerDocument();
+
+		for (final DOMNode child : getAllChildNodes()) {
+
+			try {
+
+				child.setProperties(child.getSecurityContext(), new PropertyMap(ownerDocument, page));
+
+			} catch (FrameworkException ex) {
+				logger.warn("", ex);
+			}
+
+		}
+
+	}
+
 	protected boolean renderDeploymentExportComments(final AsyncBuffer out, final boolean isContentNode) {
 
 		final Set<String> instructions = new LinkedHashSet<>();
@@ -630,7 +650,7 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 	private void getContentInstructions(final Set<String> instructions) {
 
 		final String _contentType = getProperty(Content.contentType);
-		if (_contentType != null && !"text/plain".equals(_contentType)) {
+		if (_contentType != null) {
 
 			instructions.add("@structr:content(" + escapeForHtmlAttributes(_contentType) + ")");
 		}
@@ -1059,6 +1079,15 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 			// Shadow doc is neutral
 			if (otherDoc != null && !doc.equals(otherDoc) && !(doc instanceof ShadowDocument)) {
 
+				logger.warn("{} node with UUID {} has owner document {} with UUID {} whereas this node has owner document {} with UUID {}",
+					otherNode.getClass().getSimpleName(),
+					((NodeInterface)otherNode).getUuid(),
+					otherDoc.getClass().getSimpleName(),
+					((NodeInterface)otherDoc).getUuid(),
+					doc.getClass().getSimpleName(),
+					((NodeInterface)doc).getUuid()
+				);
+
 				throw new DOMException(DOMException.WRONG_DOCUMENT_ERR, WRONG_DOCUMENT_ERR_MESSAGE);
 			}
 
@@ -1074,6 +1103,8 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 
 		if (!isGranted(Permission.write, securityContext)) {
 
+			logger.warn("User {} has no write access to {} node with UUID {}", securityContext.getUser(false), this.getClass().getSimpleName(), getUuid());
+
 			throw new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR, NO_MODIFICATION_ALLOWED_MESSAGE);
 		}
 	}
@@ -1083,6 +1114,8 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 		if (securityContext.isVisible(this) || isGranted(Permission.read, securityContext)) {
 			return;
 		}
+
+		logger.warn("User {} has no read access to {} node with UUID {}", securityContext.getUser(false), this.getClass().getSimpleName(), getUuid());
 
 		throw new DOMException(DOMException.INVALID_ACCESS_ERR, INVALID_ACCESS_ERR_MESSAGE);
 	}
@@ -1192,7 +1225,8 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 	}
 
 	public static String escapeForHtmlAttributes(final String raw) {
-		return StringUtils.replaceEach(raw, new String[]{"&", "<", ">", "\"", "'"}, new String[]{"&amp;", "&lt;", "&gt;", "&quot;", "&#39;"});
+		//return StringUtils.replaceEach(raw, new String[]{"&", "<", ">", "\"", "'"}, new String[]{"&amp;", "&lt;", "&gt;", "&quot;", "&#39;"});
+		return StringUtils.replaceEach(raw, new String[]{"&", "<", ">", "\""}, new String[]{"&amp;", "&lt;", "&gt;", "&quot;"});
 	}
 
 	protected void collectNodesByPredicate(Node startNode, DOMNodeList results, Predicate<Node> predicate, int depth, boolean stopOnFirstHit) {
@@ -1721,7 +1755,8 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 		if (_page != null) {
 
 			try {
-				setProperty(ownerDocument, _page);
+
+				setProperties(securityContext, new PropertyMap(ownerDocument, _page));
 
 			} catch (FrameworkException fex) {
 

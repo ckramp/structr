@@ -38,6 +38,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,7 @@ import org.structr.web.common.RenderContext;
 import org.structr.web.entity.AbstractFile;
 import org.structr.web.entity.FileBase;
 import org.structr.web.entity.Folder;
+import org.structr.web.entity.Image;
 import org.structr.web.entity.User;
 import org.structr.web.entity.dom.Content;
 import org.structr.web.entity.dom.DOMNode;
@@ -78,7 +80,8 @@ import org.structr.web.maintenance.deploy.TemplateImportVisitor;
  */
 public class DeployCommand extends NodeServiceCommand implements MaintenanceCommand {
 
-	private static final Logger logger = LoggerFactory.getLogger(BulkMoveUnusedFilesCommand.class.getName());
+	private static final Logger logger   = LoggerFactory.getLogger(BulkMoveUnusedFilesCommand.class.getName());
+	private static final Pattern pattern = Pattern.compile("[a-f0-9]{32}");
 
 	static {
 
@@ -104,6 +107,32 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 	public boolean requiresEnclosingTransaction() {
 		return false;
 	}
+
+	public Map<String, Object> readConfigMap(final Path pagesConf) {
+
+		if (Files.exists(pagesConf)) {
+
+			try (final Reader reader = Files.newBufferedReader(pagesConf, Charset.forName("utf-8"))) {
+
+				return new HashMap<>(getGson().fromJson(reader, Map.class));
+
+			} catch (IOException ioex) {
+				ioex.printStackTrace();
+			}
+		}
+
+		return new HashMap<>();
+	}
+
+	public Gson getGson() {
+		return new GsonBuilder().setPrettyPrinting().create();
+	}
+
+	// ----- public static methods -----
+	public static boolean isUuid(final String name) {
+		return pattern.matcher(name).matches();
+	}
+
 
 	// ----- private methods -----
 	private void doImport(final Map<String, Object> attributes) throws FrameworkException {
@@ -457,8 +486,11 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 				for (final DOMNode node : shadowDocument.getProperty(Page.elements)) {
 
+					final boolean hasParent = node.getProperty(DOMNode.parent) != null;
+					final boolean inTrash   = node.inTrash();
+
 					// skip templates, nodes in trash and non-toplevel nodes
-					if (node.inTrash() || node.getProperty(DOMNode.parent) != null) {
+					if (node instanceof Template || inTrash || hasParent) {
 						continue;
 					}
 
@@ -513,7 +545,14 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 			// export template nodes anywhere in the pages tree which are not related to shared components
 			for (final Template template : app.nodeQuery(Template.class).getAsList()) {
 
-				if (template.inTrash() || template.getProperty(DOMNode.sharedComponent) != null) {
+				final boolean inTrash     = template.inTrash();
+				final boolean isShared    = template.getProperty(DOMNode.sharedComponent) != null;
+
+				// FIXME: the below statement selects the exact same node for export that
+				// has already been exported as a shared component. Shouldn't we rather
+				// export the actual node in the pages tree?
+
+				if (inTrash || isShared) {
 					continue;
 				}
 
@@ -532,7 +571,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		}
 	}
 
-	private void exportTemplateSource(final Path target, final DOMNode template, final Map<String, Object> configuration) {
+	private void exportTemplateSource(final Path target, final DOMNode template, final Map<String, Object> configuration) throws FrameworkException {
 
 		final Map<String, Object> properties = new LinkedHashMap<>();
 
@@ -612,27 +651,45 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		}
 	}
 
-	private void exportConfiguration(final DOMNode node, final Map<String, Object> config) {
+	private void exportConfiguration(final DOMNode node, final Map<String, Object> config) throws FrameworkException {
 
 		putIf(config, "visibleToPublicUsers",        node.isVisibleToPublicUsers());
 		putIf(config, "visibleToAuthenticatedUsers", node.isVisibleToAuthenticatedUsers());
-		putIf(config, "contentType",                 node.getProperty(Content.contentType));
-		putIf(config, "position",                    node.getProperty(Page.position));
-		putIf(config, "showOnErrorCodes",            node.getProperty(Page.showOnErrorCodes));
-		putIf(config, "showConditions",              node.getProperty(Page.showConditions));
-		putIf(config, "hideConditions",              node.getProperty(Page.hideConditions));
-		putIf(config, "dontCache",                   node.getProperty(Page.dontCache));
-		putIf(config, "cacheForSeconds",             node.getProperty(Page.cacheForSeconds));
-		putIf(config, "pageCreatesRawData",          node.getProperty(Page.pageCreatesRawData));
+		putIf(config, "contentType",             node.getProperty(Content.contentType));
+
+		if (node instanceof Template) {
+
+			// mark this template as being shared
+			putIf(config, "shared", Boolean.toString(node.isSharedComponent()));
+		}
+
+		if (node instanceof Page) {
+			putIf(config, "position",                node.getProperty(Page.position));
+			putIf(config, "showOnErrorCodes",        node.getProperty(Page.showOnErrorCodes));
+			putIf(config, "showConditions",          node.getProperty(Page.showConditions));
+			putIf(config, "hideConditions",          node.getProperty(Page.hideConditions));
+			putIf(config, "dontCache",               node.getProperty(Page.dontCache));
+			putIf(config, "cacheForSeconds",         node.getProperty(Page.cacheForSeconds));
+			putIf(config, "pageCreatesRawData",      node.getProperty(Page.pageCreatesRawData));
+		}
 	}
 
 	private void exportFileConfiguration(final AbstractFile file, final Map<String, Object> config) {
 
 		putIf(config, "visibleToPublicUsers",        file.isVisibleToPublicUsers());
 		putIf(config, "visibleToAuthenticatedUsers", file.isVisibleToAuthenticatedUsers());
-		putIf(config, "contentType",                 file.getProperty(Content.contentType));
-		putIf(config, "dontCache",                   file.getProperty(Page.dontCache));
-		putIf(config, "cacheForSeconds",             file.getProperty(Page.cacheForSeconds));
+		putIf(config, "contentType",                 file.getProperty(FileBase.contentType));
+		putIf(config, "cacheForSeconds",             file.getProperty(FileBase.cacheForSeconds));
+
+		//fixme: test this
+		putIf(config, "useAsJavascriptLibrary",      file.getProperty(FileBase.useAsJavascriptLibrary));
+
+		if (file instanceof Image) {
+			putIf(config, "isThumbnail",             file.getProperty(Image.isThumbnail));
+			putIf(config, "isImage",                 file.getProperty(Image.isImage));
+			putIf(config, "width",                   file.getProperty(Image.width));
+			putIf(config, "height",                  file.getProperty(Image.height));
+		}
 	}
 
 	private void putIf(final Map<String, Object> target, final String key, final Object value) {
@@ -640,19 +697,6 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		if (value != null) {
 			target.put(key, value);
 		}
-	}
-
-	private Map<String, Object> readConfigMap(final Path pagesConf) {
-
-		try (final Reader reader = Files.newBufferedReader(pagesConf, Charset.forName("utf-8"))) {
-
-			return getGson().fromJson(reader, Map.class);
-
-		} catch (IOException ioex) {
-			ioex.printStackTrace();
-		}
-
-		return Collections.emptyMap();
 	}
 
 	private List<Map<String, Object>> readConfigList(final Path pagesConf) {
@@ -717,9 +761,5 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			tx.success();
 		}
-	}
-
-	private Gson getGson() {
-		return new GsonBuilder().setPrettyPrinting().create();
 	}
 }

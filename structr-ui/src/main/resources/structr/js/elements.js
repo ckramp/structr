@@ -95,7 +95,7 @@ var _Elements = {
 	],
 	mostUsedAttrs: [
 		{
-			elements: ['input'],
+			elements: ['input', 'textarea'],
 			attrs: ['name', 'type', 'checked', 'selected', 'value', 'size', 'multiple', 'disabled', 'autofocus', 'placeholder'],
 			focus: 'type'
 		},
@@ -287,29 +287,12 @@ var _Elements = {
 			}
 
 		});
+
 		_Dragndrop.makeSortable(components);
 
 		Command.listComponents(1000, 1, 'name', 'asc', function(result) {
 
-			result.forEach(function(entity) {
-
-				if (!entity) {
-					return false;
-				}
-
-				var obj = StructrModel.create(entity, null, false);
-				var el;
-				if (obj.isContent || obj.type === 'Template') {
-					el = _Elements.appendContentElement(obj, components, true);
-				} else {
-					el = _Pages.appendElementElement(obj, components, true);
-				}
-
-				if (isExpanded(entity.id)) {
-					_Entities.ensureExpanded(el);
-				}
-
-			});
+			_Elements.appendEntitiesToDOMElement(result, components);
 
 		});
 
@@ -327,6 +310,7 @@ var _Elements = {
 		}
 		Command.createComponent(sourceId);
 		dropBlocked = false;
+
 	},
 	reloadUnattachedNodes: function() {
 
@@ -349,29 +333,29 @@ var _Elements = {
 		});
 
 		_Dragndrop.makeSortable(elements);
+
 		Command.listUnattachedNodes(1000, 1, 'name', 'asc', function(result) {
 
-			result.forEach(function(entity) {
+			_Elements.appendEntitiesToDOMElement(result, elements);
 
-				if (!entity) {
-					return;
-				}
+		});
+
+	},
+	appendEntitiesToDOMElement: function (entities, domElement) {
+
+		entities.forEach(function(entity) {
+
+			if (entity) {
 
 				var obj = StructrModel.create(entity, null, false);
-				var el;
-				if (obj.isContent) {
-					el = _Elements.appendContentElement(obj, elements, true);
-				} else {
-					el = _Pages.appendElementElement(obj, elements, true);
-				}
+				var el = (obj.isContent) ? _Elements.appendContentElement(obj, domElement, true) : _Pages.appendElementElement(obj, domElement, true);
 
 				if (isExpanded(entity.id)) {
 					_Entities.ensureExpanded(el);
 				}
-			});
+			}
 
 		});
-
 	},
 	componentNode: function(id) {
 		return $($('#componentId_' + id)[0]);
@@ -417,8 +401,9 @@ var _Elements = {
 
 		_Logger.log(_LogType.ELEMENTS, 'Element appended (div, parent)', div, parent);
 
-		if (!div)
+		if (!div) {
 			return false;
+		}
 
 		var displayName = getElementDisplayName(entity);
 
@@ -485,7 +470,6 @@ var _Elements = {
 		}
 
 		_Entities.appendEditPropertiesIcon(div, entity);
-		//_Entities.appendDataIcon(div, entity);
 
 		if (entity.tag === 'a' || entity.tag === 'link' || entity.tag === 'script' || entity.tag === 'img' || entity.tag === 'video' || entity.tag === 'object') {
 
@@ -542,30 +526,8 @@ var _Elements = {
 
 							var div = $('.' + page.id + '_', pagesToLink);
 
-							if (isIn(entity.id, page.linkingElements)) {
-								div.addClass('nodeActive');
-							}
+							_Elements.handleLinkableElement(div, entity, page);
 
-							div.on('click', function(e) {
-								e.stopPropagation();
-								if (div.hasClass('nodeActive')) {
-									Command.setProperty(entity.id, 'linkableId', null);
-								} else {
-									Command.link(entity.id, page.id);
-								}
-								_Entities.reloadChildren(entity.parent.id);
-								$('#dialogBox .dialogText').empty();
-								_Pages.reloadPreviews();
-								$.unblockUI({
-									fadeOut: 25
-								});
-							}).css({
-								cursor: 'pointer'
-							}).hover(function() {
-								$(this).addClass('nodeHover');
-							}, function() {
-								$(this).removeClass('nodeHover');
-							});
 						});
 
 					});
@@ -576,9 +538,7 @@ var _Elements = {
 					var foldersToLink = $('#foldersToLink');
 
 					_Pager.initPager('folders-to-link', 'Folder', 1, 25);
-					_Pager.initFilters('folders-to-link', 'Folder', {
-						hasParent: false
-					});
+					_Pager.initFilters('folders-to-link', 'Folder', { hasParent: false });
 					var linkFolderPager = _Pager.addPager('folders-to-link', foldersToLink, true, 'Folder', 'public', function(folders) {
 
 						folders.forEach(function(folder) {
@@ -617,35 +577,12 @@ var _Elements = {
 
 						files.forEach(function(file) {
 
-							filesToLink.append('<div class="node file ' + file.id + '_"><i class="fa ' + _Files.getIcon(file) + '"></i> '
+							filesToLink.append('<div class="node file ' + file.id + '_"><i class="fa ' + _Icons.getFileIconClass(file) + '"></i> '
 									+ '<b title="' + file.name + '" class="name_">' + file.name + '</b></div>');
 
 							var div = $('.' + file.id + '_', filesToLink);
 
-							if (isIn(entity.id, file.linkingElements)) {
-								div.addClass('nodeActive');
-							}
-
-							div.on('click', function(e) {
-								e.stopPropagation();
-								if (div.hasClass('nodeActive')) {
-									Command.setProperty(entity.id, 'linkableId', null);
-								} else {
-									Command.link(entity.id, file.id);
-								}
-								_Entities.reloadChildren(entity.parent.id);
-								$('#dialogBox .dialogText').empty();
-								_Pages.reloadPreviews();
-								$.unblockUI({
-									fadeOut: 25
-								});
-							}).css({
-								cursor: 'pointer'
-							}).hover(function() {
-								$(this).addClass('nodeHover');
-							}, function() {
-								$(this).removeClass('nodeHover');
-							});
+							_Elements.handleLinkableElement(div, entity, file);
 
 						});
 
@@ -667,36 +604,12 @@ var _Elements = {
 
 						images.forEach(function(image) {
 
-							imagesToLink.append('<div class="node file ' + image.id + '_"><img class="typeIcon" src="' + _Images.getIcon(image) + '">'
+							imagesToLink.append('<div class="node file ' + image.id + '_"><img class="typeIcon" src="' + _Icons.getImageIcon(image) + '">'
 									+ '<b title="' + image.name + '" class="name_">' + image.name + '</b></div>');
 
 							var div = $('.' + image.id + '_', imagesToLink);
 
-							if (isIn(entity.id, image.linkingElements)) {
-								div.addClass('nodeActive');
-							}
-
-							div.on('click', function(e) {
-								e.stopPropagation();
-								if (div.hasClass('nodeActive')) {
-									//console.log('removing')
-									Command.setProperty(entity.id, 'linkableId', null);
-								} else {
-									Command.link(entity.id, image.id);
-								}
-								_Entities.reloadChildren(entity.parent.id);
-								$('#dialogBox .dialogText').empty();
-								_Pages.reloadPreviews();
-								$.unblockUI({
-									fadeOut: 25
-								});
-							}).css({
-								cursor: 'pointer'
-							}).hover(function() {
-								$(this).addClass('nodeHover');
-							}, function() {
-								$(this).removeClass('nodeHover');
-							});
+							_Elements.handleLinkableElement(div, entity, image);
 
 						});
 
@@ -720,12 +633,12 @@ var _Elements = {
 		return classIdString;
 	},
 	expandFolder: function(e, entity, folder, callback) {
+
 		if (folder.files.length + folder.folders.length === 0) {
 			return;
 		}
 
 		var div = $('.' + folder.id + '_');
-		//div.css({'border': '1px solid #ccc', 'backgroundColor': '#f5f5f5'});
 
 		div.children('b').on('click', function() {
 			$(this).siblings('.node.sub').remove();
@@ -733,8 +646,10 @@ var _Elements = {
 
 		$.each(folder.folders, function(i, subFolder) {
 			e.stopPropagation();
+
 			$('.' + folder.id + '_').append('<div class="clear"></div><div class="node folder sub ' + subFolder.id + '_"><i class="fa fa-folder"></i> '
 					+ '<b title="' + subFolder.name + '" class="name_">' + subFolder.name + '</b></div>');
+
 			var subDiv = $('.' + subFolder.id + '_');
 
 			subDiv.on('click', function(e) {
@@ -761,37 +676,49 @@ var _Elements = {
 
 			Command.get(f.id, function(file) {
 
-				$('.' + folder.id + '_').append('<div class="clear"></div><div class="node file sub ' + file.id + '_"><i class="fa ' + _Files.getIcon(file) + '"></i> '
+				$('.' + folder.id + '_').append('<div class="clear"></div><div class="node file sub ' + file.id + '_"><i class="fa ' + _Icons.getFileIconClass(file) + '"></i> '
 						+ '<b title="' + file.name + '" class="name_">' + file.name + '</b></div>');
+
 				var div = $('.' + file.id + '_');
 
-				if (isIn(entity.id, file.linkingElements)) {
-					div.addClass('nodeActive');
-				}
+				_Elements.handleLinkableElement(div, entity, file);
 
-				div.on('click', function(e) {
-					e.stopPropagation();
-					if (div.hasClass('nodeActive')) {
-						Command.setProperty(entity.id, 'linkableId', null);
-					} else {
-						Command.link(entity.id, file.id);
-					}
-					_Entities.reloadChildren(entity.parent.id);
-					$('#dialogBox .dialogText').empty();
-					_Pages.reloadPreviews();
-					$.unblockUI({
-						fadeOut: 25
-					});
-				}).css({
-					cursor: 'pointer'
-				}).hover(function() {
-					$(this).addClass('nodeHover');
-				}, function() {
-					$(this).removeClass('nodeHover');
-				});
 			});
 
 		});
+	},
+	handleLinkableElement: function (div, entityToLinkTo, linkableObject) {
+
+		if (isIn(entityToLinkTo.id, linkableObject.linkingElements)) {
+			div.addClass('nodeActive');
+		}
+
+		div.on('click', function(event) {
+
+			event.stopPropagation();
+
+			if (div.hasClass('nodeActive')) {
+				Command.setProperty(entityToLinkTo.id, 'linkableId', null);
+			} else {
+				Command.link(entityToLinkTo.id, linkableObject.id);
+			}
+
+			_Entities.reloadChildren(entityToLinkTo.parent.id);
+
+			$('#dialogBox .dialogText').empty();
+			_Pages.reloadPreviews();
+
+			$.unblockUI({
+				fadeOut: 25
+			});
+		}).css({
+			cursor: 'pointer'
+		}).hover(function() {
+			$(this).addClass('nodeHover');
+		}, function() {
+			$(this).removeClass('nodeHover');
+		});
+
 	},
 	appendContextMenu: function(div, entity) {
 
@@ -806,11 +733,11 @@ var _Elements = {
 		});
 
 		$(div).on('mouseup', function(e) {
-			e.stopPropagation();
-
 			if (e.button !== 2) {
 				return;
 			}
+
+			e.stopPropagation();
 
 			_Elements.removeContextMenu();
 			div.addClass('contextMenuActive');
@@ -843,7 +770,7 @@ var _Elements = {
 				{
 					visible: (entity.type !== 'Content'),
 					name: 'Insert HTML element',
-					elements: (entity.type !== 'Page') ? _Elements.sortedElementGroups : ['html'],
+					elements: (entity.type !== 'Page') ? _Elements.sortedElementGroups : ['html']
 				},
 				{
 					visible: (entity.type !== 'Content'),
@@ -1005,13 +932,7 @@ var _Elements = {
 
 				$('#add-child-dialog').append(
 					'<ul class="' + cssPositionClasses + '" id="element-menu-' + i + '"><li id="element-group-switch-' + i + '">' + item.name +
-					(isSubmenu ?
-						'<i class="fa fa-caret-right pull-right"></i>' +
-						'<ul class="element-group hidden ' +
-						cssPositionClasses +
-						'" id="element-group-' + i + '"></ul>'
-						: ''
-					) +
+					(isSubmenu ? '<i class="fa fa-caret-right pull-right"></i><ul class="element-group hidden ' + cssPositionClasses + '" id="element-group-' + i + '"></ul>' : '' ) +
 					'</li></ul>'
 				);
 
@@ -1299,19 +1220,14 @@ var _Elements = {
 			var speechBtn = $('.speechToText', dialogBox);
 
 			_Speech.init(speechBtn, function(interim, finalResult) {
-				//console.log('Interim:', interim);
-				//console.log('Final:', finalResult);
 
 				if (_Speech.isCommand('save', interim)) {
-					//console.log('Save command detected');
 					dialogSaveButton.click();
 				} else if (_Speech.isCommand('saveAndClose', interim)) {
-					//console.log('Save and close command detected');
 					_Speech.toggleStartStop(speechBtn, function() {
 						$('#saveAndClose', dialogBtn).click();
 					});
 				} else if (_Speech.isCommand('close', interim)) {
-					//console.log('Close command detected');
 					_Speech.toggleStartStop(speechBtn, function() {
 						dialogCancelButton.click();
 					});
@@ -1344,7 +1260,6 @@ var _Elements = {
 					editor.execCommand('deleteLineLeft');
 				} else if (_Speech.isCommand('deleteLineRight', interim)) {
 					editor.execCommand('killLine');
-
 				} else if (_Speech.isCommand('lineUp', interim)) {
 					editor.execCommand('goLineUp');
 				} else if (_Speech.isCommand('lineDown', interim)) {
@@ -1357,15 +1272,8 @@ var _Elements = {
 					editor.execCommand('goCharLeft');
 				} else if (_Speech.isCommand('right', interim)) {
 					editor.execCommand('goCharRight');
-
-
 				} else {
-					//editor.setValue(editor.getValue() + interim);
-
 					editor.replaceSelection(interim);
-
-					//editor.focus();
-					//editor.execCommand('goDocEnd');
 				}
 
 			});
@@ -1421,11 +1329,6 @@ var _Elements = {
 			if (!text2)
 				text2 = '';
 
-//			var contentNode = Structr.node(entity.id)[0];
-//			_Logger.consoleLog('Element', contentNode);
-//			_Logger.consoleLog('text1', text1);
-//			_Logger.consoleLog('text2', text2);
-
 			if (text1 === text2) {
 				return;
 			}
@@ -1442,8 +1345,6 @@ var _Elements = {
 			});
 
 		});
-
-		//_Entities.appendBooleanSwitch(dialogMeta, entity, 'editable', 'Editable', 'If enabled, data fields in this content element are editable in edit mode.');
 
 		var values = ['text/plain', 'text/html', 'text/xml', 'text/css', 'text/javascript', 'text/markdown', 'text/textile', 'text/mediawiki', 'text/tracwiki', 'text/confluence', 'text/asciidoc'];
 
@@ -1480,7 +1381,6 @@ var _Elements = {
 		editor.id = entity.id;
 
 		editor.focus();
-		//editor.execCommand('goDocEnd');
 
 	}
 };

@@ -30,11 +30,14 @@ import org.structr.common.PermissionResolutionMask;
 import org.structr.common.SecurityContext;
 import org.structr.common.error.ErrorBuffer;
 import org.structr.common.error.FrameworkException;
+import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.AbstractRelationship;
 import org.structr.core.graph.CreationContainer;
 import org.structr.core.graph.ModificationQueue;
+import org.structr.core.graph.NodeFactory;
 import org.structr.core.graph.NodeInterface;
+import org.structr.core.graph.RelationshipFactory;
 import org.structr.core.graph.RelationshipInterface;
 import org.structr.core.graph.TransactionCommand;
 import org.structr.core.property.BooleanProperty;
@@ -144,6 +147,8 @@ public interface GraphObject {
 
 		final CreationContainer container = new CreationContainer(this);
 
+		boolean atLeastOnePropertyChanged = false;
+
 		for (final Entry<PropertyKey, Object> attr : properties.entrySet()) {
 
 			final PropertyKey key = attr.getKey();
@@ -153,18 +158,53 @@ public interface GraphObject {
 			if (value != null && AbstractCypherIndex.INDEXABLE.contains(valueType)) {
 
 				final Object oldValue = getProperty(key);
-				if (oldValue != value) {
+				if ( !value.equals(oldValue) ) {
+
+					atLeastOnePropertyChanged = true;
 
 					// bulk set possible, store in container
 					key.setProperty(securityContext, container, value);
 
 					if (isNode()) {
 
-						TransactionCommand.nodeModified(securityContext.getCachedUser(), (AbstractNode)this, key, getProperty(key), value);
+						if (!key.isUnvalidated()) {
+
+							TransactionCommand.nodeModified(securityContext.getCachedUser(), (AbstractNode)this, key, getProperty(key), value);
+
+						}
+
+						if (key instanceof TypeProperty) {
+							NodeFactory.invalidateCache();
+
+							if (this instanceof NodeInterface) {
+
+								final Class type = StructrApp.getConfiguration().getNodeEntityClass((String)value);
+
+								TypeProperty.updateLabels(StructrApp.getInstance().getDatabaseService(), (NodeInterface)this, type);
+							}
+
+						}
 
 					} else if (isRelationship()) {
 
-						TransactionCommand.relationshipModified(securityContext.getCachedUser(), (AbstractRelationship)this, key, getProperty(key), value);
+						if (!key.isUnvalidated()) {
+
+							TransactionCommand.relationshipModified(securityContext.getCachedUser(), (AbstractRelationship)this, key, getProperty(key), value);
+
+						}
+
+
+						if (key instanceof TypeProperty) {
+							RelationshipFactory.invalidateCache();
+
+							if (this instanceof NodeInterface) {
+
+								final Class type = StructrApp.getConfiguration().getNodeEntityClass((String)value);
+
+								TypeProperty.updateLabels(StructrApp.getInstance().getDatabaseService(), (NodeInterface)this, type);
+							}
+
+						}
 					}
 				}
 
@@ -179,8 +219,10 @@ public interface GraphObject {
 			}
 		}
 
-		// set primitive values directly for better performance
-		getPropertyContainer().setProperties(container.getData());
+		if (atLeastOnePropertyChanged) {
+			// set primitive values directly for better performance
+			getPropertyContainer().setProperties(container.getData());
+		}
 	}
 
 	/**
@@ -377,8 +419,6 @@ public interface GraphObject {
 
 	public NodeInterface getSyncNode();
 	public RelationshipInterface getSyncRelationship();
-
-	public void updateFromPropertyMap(final Map<String, Object> properties) throws FrameworkException;
 
 	// ----- CMIS support -----
 	/**

@@ -22,9 +22,12 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.common.PropertyView;
+import org.structr.common.SecurityContext;
 import org.structr.common.View;
+import org.structr.common.error.ErrorBuffer;
 import org.structr.common.error.FrameworkException;
 import org.structr.core.property.Property;
+import org.structr.core.property.PropertyMap;
 import org.structr.web.common.HtmlProperty;
 import org.structr.web.entity.dom.Content;
 import org.structr.web.entity.dom.DOMElement;
@@ -47,6 +50,17 @@ public class Style extends DOMElement {
 		_media, _type, _scoped
 	);
 
+	@Override
+	public boolean onCreation(final SecurityContext securityContext, final ErrorBuffer errorBuffer) throws FrameworkException {
+
+		if (super.isValid(errorBuffer)) {
+
+			setProperty(Style._type, "text/css");
+			return true;
+		}
+
+		return false;
+	}
 
 	@Override
 	public Property[] getHtmlAttributes() {
@@ -69,7 +83,7 @@ public class Style extends DOMElement {
 
 				if (childContentType == null && thisContentType != null) {
 
-					content.setProperty(Content.contentType, thisContentType);
+					content.setProperties(securityContext, new PropertyMap(Content.contentType, thisContentType));
 				}
 
 			} catch (FrameworkException fex) {

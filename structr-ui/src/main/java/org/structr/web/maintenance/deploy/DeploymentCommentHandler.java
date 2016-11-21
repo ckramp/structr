@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.structr.common.error.FrameworkException;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
+import org.structr.core.property.PropertyMap;
 import org.structr.web.entity.AbstractFile;
 import org.structr.web.entity.LinkSource;
 import org.structr.web.entity.Linkable;
@@ -48,23 +49,31 @@ public class DeploymentCommentHandler implements CommentHandler {
 	static {
 
 		handlers.put("public-only", (Page page, DOMNode node, final String parameters) -> {
-			node.setProperty(AbstractNode.visibleToPublicUsers, true);
-			node.setProperty(AbstractNode.visibleToAuthenticatedUsers, false);
+			final PropertyMap changedProperties = new PropertyMap();
+			changedProperties.put(AbstractNode.visibleToPublicUsers,        true);
+			changedProperties.put(AbstractNode.visibleToAuthenticatedUsers, false);
+			node.setProperties(node.getSecurityContext(), changedProperties);
 		});
 
 		handlers.put("public", (Page page, DOMNode node, final String parameters) -> {
-			node.setProperty(AbstractNode.visibleToPublicUsers, true);
-			node.setProperty(AbstractNode.visibleToAuthenticatedUsers, true);
+			final PropertyMap changedProperties = new PropertyMap();
+			changedProperties.put(AbstractNode.visibleToPublicUsers,        true);
+			changedProperties.put(AbstractNode.visibleToAuthenticatedUsers, true);
+			node.setProperties(node.getSecurityContext(), changedProperties);
 		});
 
 		handlers.put("protected", (Page page, DOMNode node, final String parameters) -> {
-			node.setProperty(AbstractNode.visibleToPublicUsers, false);
-			node.setProperty(AbstractNode.visibleToAuthenticatedUsers, true);
+			final PropertyMap changedProperties = new PropertyMap();
+			changedProperties.put(AbstractNode.visibleToPublicUsers,        false);
+			changedProperties.put(AbstractNode.visibleToAuthenticatedUsers, true);
+			node.setProperties(node.getSecurityContext(), changedProperties);
 		});
 
 		handlers.put("private", (Page page, DOMNode node, final String parameters) -> {
-			node.setProperty(AbstractNode.visibleToPublicUsers, false);
-			node.setProperty(AbstractNode.visibleToAuthenticatedUsers, false);
+			final PropertyMap changedProperties = new PropertyMap();
+			changedProperties.put(AbstractNode.visibleToPublicUsers,        false);
+			changedProperties.put(AbstractNode.visibleToAuthenticatedUsers, false);
+			node.setProperties(node.getSecurityContext(), changedProperties);
 		});
 
 		handlers.put("link", (Page page, DOMNode node, final String parameters) -> {
@@ -75,21 +84,21 @@ public class DeploymentCommentHandler implements CommentHandler {
 				if (file != null) {
 
 					final LinkSource linkSource = (LinkSource)node;
-					linkSource.setProperty(LinkSource.linkable, file);
+					linkSource.setProperties(linkSource.getSecurityContext(), new PropertyMap(LinkSource.linkable, file));
 				}
 			}
 		});
 
 		handlers.put("content", (Page page, DOMNode node, final String parameters) -> {
-			node.setProperty(Content.contentType, parameters);
+			node.setProperties(node.getSecurityContext(), new PropertyMap(Content.contentType, parameters));
 		});
 
 		handlers.put("show", (Page page, DOMNode node, final String parameters) -> {
-			node.setProperty(DOMNode.showConditions, parameters);
+			node.setProperties(node.getSecurityContext(), new PropertyMap(DOMNode.showConditions, parameters));
 		});
 
 		handlers.put("hide", (Page page, DOMNode node, final String parameters) -> {
-			node.setProperty(DOMNode.hideConditions, parameters);
+			node.setProperties(node.getSecurityContext(), new PropertyMap(DOMNode.hideConditions, parameters));
 		});
 	}
 
@@ -98,12 +107,26 @@ public class DeploymentCommentHandler implements CommentHandler {
 	private int sourceLength    = 0;
 
 	@Override
-	public boolean handleComment(final Page page, final DOMNode node, final String comment) throws FrameworkException {
-		return parseInstructions(page, node, comment.trim());
+	public boolean containsInstructions(final String comment) {
+
+		try {
+
+			return parseInstructions(null, null, comment, false);
+
+		} catch (FrameworkException fex) {
+			logger.warn("Unexpected exception, no changes should be made in this method: {}", fex.getMessage());
+		}
+
+		return false;
+	}
+
+	@Override
+	public boolean handleComment(final Page page, final DOMNode node, final String comment, final boolean apply) throws FrameworkException {
+		return parseInstructions(page, node, comment.trim(), apply);
 	}
 
 	// ----- private methods -----
-	private boolean parseInstructions(final Page page, final DOMNode node, final String src) throws FrameworkException {
+	private boolean parseInstructions(final Page page, final DOMNode node, final String src, final boolean apply) throws FrameworkException {
 
 		this.source          = src.toCharArray();
 		this.sourceLength    = src.length();
@@ -140,7 +163,12 @@ public class DeploymentCommentHandler implements CommentHandler {
 						}
 					}
 
-					handler.apply(page, node, parameters);
+					// only apply if instructed to (can be used to check
+					// if the comment source actually contains instructions)
+					if (apply) {
+
+						handler.apply(page, node, parameters);
+					}
 
 				} else {
 
@@ -181,10 +209,6 @@ public class DeploymentCommentHandler implements CommentHandler {
 
 				sequenceStarted = true;
 				buf.append(c);
-
-			} else {
-
-				logger.warn("Premature end of sequence, expected {}, got {}", new Object[] { sequence, buf.toString() });
 			}
 		}
 

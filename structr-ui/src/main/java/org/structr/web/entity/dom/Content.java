@@ -20,9 +20,7 @@ package org.structr.web.entity.dom;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 import net.java.textilej.parser.MarkupParser;
 import net.java.textilej.parser.markup.confluence.ConfluenceDialect;
 import net.java.textilej.parser.markup.mediawiki.MediaWikiDialect;
@@ -182,6 +180,21 @@ public class Content extends DOMNode implements Text, NonIndexed {
 	}
 
 	@Override
+	public boolean onCreation(final SecurityContext securityContext, final ErrorBuffer errorBuffer) throws FrameworkException {
+
+		if (super.isValid(errorBuffer)) {
+
+			if (getProperty(Content.contentType) == null) {
+				setProperty(Content.contentType, "text/plain");
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	@Override
 	public boolean onModification(SecurityContext securityContext, ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
 
 		if (super.onModification(securityContext, errorBuffer, modificationQueue)) {
@@ -248,11 +261,10 @@ public class Content extends DOMNode implements Text, NonIndexed {
 
 		if (newNode instanceof Content) {
 
-			final Map<String, Object> properties = new HashMap<>();
-			properties.put("content", newNode.getProperty(Content.content));
+			setProperties(securityContext, new PropertyMap(content, newNode.getProperty(Content.content)));
 
-			updateFromPropertyMap(properties);
 		}
+
 	}
 
 	@Override
@@ -422,7 +434,7 @@ public class Content extends DOMNode implements Text, NonIndexed {
 					try {
 
 						// first part goes into existing text element
-						setProperty(content, firstPart);
+						setProperties(securityContext, new PropertyMap(content, firstPart));
 
 						// second part goes into new text element
 						Text newNode = document.createTextNode(secondPart);
@@ -487,7 +499,7 @@ public class Content extends DOMNode implements Text, NonIndexed {
 
 		checkWriteAccess();
 		try {
-			setProperty(content, data);
+			setProperties(securityContext, new PropertyMap(content, data));
 
 		} catch (FrameworkException fex) {
 
@@ -538,7 +550,7 @@ public class Content extends DOMNode implements Text, NonIndexed {
 
 		try {
 			String text = getProperty(content);
-			setProperty(content, text.concat(data));
+			setProperties(securityContext, new PropertyMap(content, text.concat(data)));
 
 		} catch (FrameworkException fex) {
 
@@ -565,7 +577,7 @@ public class Content extends DOMNode implements Text, NonIndexed {
 			buf.append(rightPart);
 
 			// finally, set content to concatenated left, data and right parts
-			setProperty(content, buf.toString());
+			setProperties(securityContext, new PropertyMap(content, buf.toString()));
 
 
 		} catch (FrameworkException fex) {
@@ -588,7 +600,7 @@ public class Content extends DOMNode implements Text, NonIndexed {
 			String leftPart  = text.substring(0, offset);
 			String rightPart = text.substring(offset + count);
 
-			setProperty(content, leftPart.concat(rightPart));
+			setProperties(securityContext, new PropertyMap(content, leftPart.concat(rightPart)));
 
 		} catch (FrameworkException fex) {
 
@@ -615,7 +627,7 @@ public class Content extends DOMNode implements Text, NonIndexed {
 			buf.append(data);
 			buf.append(rightPart);
 
-			setProperty(content, buf.toString());
+			setProperties(securityContext, new PropertyMap(content, buf.toString()));
 
 		} catch (FrameworkException fex) {
 
@@ -743,49 +755,5 @@ public class Content extends DOMNode implements Text, NonIndexed {
 
 			return Factory.create();
 		}
-	}
-
-	private static final Set<Character> SPECIAL_CHARS = new LinkedHashSet<>();
-
-	static {
-
-		SPECIAL_CHARS.add('\\');
-		SPECIAL_CHARS.add('+');
-		SPECIAL_CHARS.add('-');
-		SPECIAL_CHARS.add('!');
-		SPECIAL_CHARS.add('(');
-		SPECIAL_CHARS.add(')');
-		SPECIAL_CHARS.add(':');
-		SPECIAL_CHARS.add('^');
-		SPECIAL_CHARS.add('[');
-		SPECIAL_CHARS.add(']');
-		SPECIAL_CHARS.add('"');
-		SPECIAL_CHARS.add('{');
-		SPECIAL_CHARS.add('}');
-		SPECIAL_CHARS.add('~');
-		SPECIAL_CHARS.add('*');
-		SPECIAL_CHARS.add('?');
-		SPECIAL_CHARS.add('|');
-		SPECIAL_CHARS.add('&');
-		SPECIAL_CHARS.add(';');
-	}
-
-	private String escape(String input) {
-
-		StringBuilder output = new StringBuilder();
-
-		for (int i = 0; i < input.length(); i++) {
-
-			char c = input.charAt(i);
-
-			if (SPECIAL_CHARS.contains(c) || Character.isWhitespace(c)) {
-
-				output.append('\\');
-			}
-
-			output.append(c);
-		}
-
-		return output.toString();
 	}
 }

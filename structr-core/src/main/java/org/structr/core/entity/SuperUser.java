@@ -213,11 +213,6 @@ public class SuperUser implements Principal, AccessControllable, NonIndexed {
 
 	}
 
-	@Override
-	public boolean canHaveOwner() {
-		return false;
-	}
-
 	//~--- set methods ----------------------------------------------------
 
 	public void setPassword(final String passwordValue) {
@@ -460,10 +455,6 @@ public class SuperUser implements Principal, AccessControllable, NonIndexed {
 	@Override
 	public RelationshipInterface getSyncRelationship() {
 		return null;
-	}
-
-	@Override
-	public void updateFromPropertyMap(final Map<String, Object> properties) throws FrameworkException {
 	}
 
 	@Override

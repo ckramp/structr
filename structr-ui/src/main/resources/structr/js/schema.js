@@ -143,7 +143,7 @@ var _Schema = {
 				}
 			});
 
-			schemaInputContainer.append('<button class="btn" id="admin-tools"><img src="' + _Icons.edit_ui_properties_icon + '"> Tools</button>');
+			schemaInputContainer.append('<button class="btn" id="admin-tools"><img src="' + _Icons.wrench_icon + '"> Tools</button>');
 			$('#admin-tools').on('click', function() {
 				_Schema.openAdminTools();
 			});
@@ -3282,6 +3282,10 @@ var _Schema = {
 
 		};
 
+		var actionsAvailableForClass = function (className) {
+			return (["AbstractNode", "ContentContainer", "ContentItem"].indexOf(className) === -1);
+		};
+
 		var printClassTree = function ($elem, classTree) {
 			var classes = Object.keys(classTree).sort();
 
@@ -3291,8 +3295,8 @@ var _Schema = {
 
 				classes.forEach(function (classname) {
 
-					var icons = (classname !== 'AbstractNode' ? '<img class="delete_icon icon delete" src="' + _Icons.delete_icon + '"><img class="edit_icon icon edit" src="' + _Icons.edit_icon + '">' : '');
-					var classId = (classname !== 'AbstractNode' ? ' data-id="' + classnameToId[classname] + '"' : '');
+					var icons = (actionsAvailableForClass(classname) ? '<img class="delete_icon icon delete" src="' + _Icons.delete_icon + '"><img class="edit_icon icon edit" src="' + _Icons.edit_icon + '">' : '');
+					var classId = (actionsAvailableForClass(classname) ? ' data-id="' + classnameToId[classname] + '"' : '');
 
 					var $newLi = $('<li data-jstree=\'{"opened":true}\'' + classId + '>' + classname + icons + '</li>').appendTo($newUl);
 					printClassTree($newLi, classTree[classname]);
@@ -3372,16 +3376,14 @@ var _Schema = {
 		});
 	},
 	enableEditFunctionsInClassTree: function() {
-		$('img.edit_icon', inheritanceTree).off('click');
-		$('img.edit_icon', inheritanceTree).on('click', function (e) {
+		$('img.edit_icon', inheritanceTree).off('click').on('click', function (e) {
 			var nodeId = $(this).closest('li').data('id');
 			if (nodeId) {
 				_Schema.openEditDialog(nodeId);
 			}
 		});
 
-		$('img.delete_icon', inheritanceTree).off('click');
-		$('img.delete_icon', inheritanceTree).on('click', function (e) {
+		$('img.delete_icon', inheritanceTree).off('click').on('click', function (e) {
 			var nodeId = $(this).closest('li').data('id');
 			if (nodeId) {
 				Structr.confirmation(

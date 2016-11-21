@@ -74,23 +74,30 @@ public class PageImportVisitor implements FileVisitor<Path> {
 	@Override
 	public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
 
-		if (attrs.isDirectory()) {
+		try {
 
-			createFolder(file);
+			if (attrs.isDirectory()) {
 
-		} else if (attrs.isRegularFile()) {
+				createFolder(file);
 
-			final String fileName = file.getFileName().toString();
-			if (fileName.endsWith(".html")) {
+			} else if (attrs.isRegularFile()) {
 
-				try {
+				final String fileName = file.getFileName().toString();
+				if (fileName.endsWith(".html")) {
 
-					createPage(file, fileName);
+					try {
 
-				} catch (FrameworkException fex) {
-					logger.warn("Exception while importing page {}: {}", new Object[] { name, fex.getMessage() });
+						createPage(file, fileName);
+
+					} catch (FrameworkException fex) {
+						logger.warn("Exception while importing page {}: {}", new Object[] { name, fex.getMessage() });
+					}
 				}
 			}
+
+		} catch (Throwable t) {
+			
+			t.printStackTrace();
 		}
 
 		return FileVisitResult.CONTINUE;
@@ -112,7 +119,7 @@ public class PageImportVisitor implements FileVisitor<Path> {
 	private Page getExistingPage(final String name) {
 
 		final App app = StructrApp.getInstance();
-		try (final Tx tx = app.tx(false, false, false)) {
+		try (final Tx tx = app.tx(true, false, false)) {
 
 			return app.nodeQuery(Page.class).andName(name).getFirst();
 
@@ -164,7 +171,7 @@ public class PageImportVisitor implements FileVisitor<Path> {
 
 	private void createFolder(final Path file) {
 
-		try (final Tx tx = app.tx(false, false, false)) {
+		try (final Tx tx = app.tx(true, false, false)) {
 
 			// create folder
 			FileHelper.createFolderPath(securityContext, basePath.relativize(file).toString());
@@ -182,7 +189,7 @@ public class PageImportVisitor implements FileVisitor<Path> {
 		final PropertyMap properties = getPropertiesForPage(name);
 		final Page existingPage      = getExistingPage(name);
 
-		try (final Tx tx = app.tx(false, false, false)) {
+		try (final Tx tx = app.tx(true, false, false)) {
 
 			if (existingPage != null) {
 

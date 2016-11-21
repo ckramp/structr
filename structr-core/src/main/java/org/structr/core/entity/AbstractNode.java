@@ -31,7 +31,6 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.chemistry.opencmis.commons.data.Ace;
 import org.apache.chemistry.opencmis.commons.data.AllowableActions;
@@ -727,19 +726,11 @@ public abstract class AbstractNode implements NodeInterface, AccessControllable,
 
 		if (cachedOwnerNode == null) {
 
-			if (this instanceof Principal && !(this instanceof Group)) {
+			final Ownership ownership = getIncomingRelationshipAsSuperUser(PrincipalOwnsNode.class);
+			if (ownership != null) {
 
-				// a user is its own owner
-				cachedOwnerNode = (Principal)this;
-
-			} else {
-
-				final Ownership ownership = getIncomingRelationshipAsSuperUser(PrincipalOwnsNode.class);
-				if (ownership != null) {
-
-					Principal principal = ownership.getSourceNode();
-					cachedOwnerNode = (Principal) principal;
-				}
+				Principal principal = ownership.getSourceNode();
+				cachedOwnerNode = (Principal) principal;
 			}
 		}
 
@@ -818,9 +809,8 @@ public abstract class AbstractNode implements NodeInterface, AccessControllable,
 			return false;
 		}
 
-
 		// use quick checks for maximum performance
-		if (isCreation && (accessingUser == null || accessingUser.equals(getOwnerNode()) ) ) {
+		if (isCreation && (accessingUser == null || accessingUser.equals(this) || accessingUser.equals(getOwnerNode()) ) ) {
 			return true;
 		}
 
@@ -1356,11 +1346,6 @@ public abstract class AbstractNode implements NodeInterface, AccessControllable,
 
 	}
 
-	@Override
-	public boolean canHaveOwner() {
-		return true;
-	}
-
 	/**
 	 * Set a property in database backend. This method needs to be wrappend
 	 * into a StructrTransaction, otherwise Neo4j will throw a
@@ -1833,26 +1818,6 @@ public abstract class AbstractNode implements NodeInterface, AccessControllable,
 	@Override
 	public final RelationshipInterface getSyncRelationship() {
 		throw new ClassCastException(this.getClass() + " cannot be cast to org.structr.core.graph.RelationshipInterface");
-	}
-
-	@Override
-	public final void updateFromPropertyMap(final Map<String, Object> properties) throws FrameworkException {
-
-		// update all properties that exist in the source map
-		for (final Entry<String, Object> entry : properties.entrySet()) {
-
-			final String key = entry.getKey();
-			final Object val = entry.getValue();
-
-			if (val != null) {
-
-				getNode().setProperty(key, val);
-
-			} else {
-
-				getNode().removeProperty(key);
-			}
-		}
 	}
 
 	// ----- CMIS support methods -----
