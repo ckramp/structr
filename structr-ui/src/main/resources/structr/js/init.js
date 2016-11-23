@@ -1359,6 +1359,74 @@ var Structr = {
 	},
 	updateMainHelpLink: function (newUrl) {
 		$('#main-help a').attr('href', newUrl);
+	},
+	isButtonDisabled: function (button) {
+		return $(button).data('disabled');
+	},
+	disableButton: function (button, newClickHandler) {
+		var b = $(button);
+		b.data('disabled', true);
+		b.addClass('disabled');
+
+		if (newClickHandler) {
+			b.off('click');
+			b.on('click', newClickHandler);
+			b.data('disabled', false);
+		}
+	},
+	enableButton: function (button, newClickHandler) {
+		var b = $(button);
+		b.data('disabled', false);
+		b.removeClass('disabled');
+
+		if (newClickHandler) {
+			b.off('click');
+			b.on('click', newClickHandler);
+		}
+	},
+	addExpandedNode: function (id) {
+		_Logger.log(_LogType.INIT, 'addExpandedNode', id);
+
+		if (id) {
+			var alreadyStored = Structr.getExpanded()[id];
+			if (!alreadyStored) {
+
+				Structr.getExpanded()[id] = true;
+				LSWrapper.setItem(expandedIdsKey, JSON.stringify(Structr.expanded));
+
+			}
+		}
+	},
+	removeExpandedNode: function (id) {
+		_Logger.log(_LogType.INIT, 'removeExpandedNode', id);
+
+		if (id) {
+			delete Structr.getExpanded()[id];
+			LSWrapper.setItem(expandedIdsKey, JSON.stringify(Structr.expanded));
+		}
+	},
+	isExpanded: function (id) {
+		_Logger.log(_LogType.INIT, 'id, Structr.getExpanded()[id]', id, Structr.getExpanded()[id]);
+
+		if (id) {
+			var isExpanded = (Structr.getExpanded()[id] === true) ? true : false;
+
+			_Logger.log(_LogType.INIT, isExpanded);
+
+			return isExpanded;
+		}
+
+		return false;
+	},
+	getExpanded: function () {
+		if (!Structr.expanded) {
+			Structr.expanded = JSON.parse(LSWrapper.getItem(expandedIdsKey));
+		}
+
+		if (!Structr.expanded) {
+			Structr.expanded = {};
+		}
+		return Structr.expanded;
 	}
 };
 
@@ -1567,85 +1635,12 @@ function MessageBuilder () {
 	return this;
 }
 
-function getElementPath(element) {
-	var i = -1;
-	return $(element).parents('.node').andSelf().map(function() {
-		i++;
-		var self = $(this);
-		// id for top-level element
-		if (i === 0)
-			return Structr.getId(self);
-		return self.prevAll('.node').length;
-	}).get().join('_');
-}
-
-function swapFgBg(el) {
-	var fg = el.css('color');
-	var bg = el.css('backgroundColor');
-	el.css('color', bg);
-	el.css('backgroundColor', fg);
-
-}
-
 function isImage(contentType) {
 	return (contentType && contentType.indexOf('image') > -1);
 }
 
 function isVideo(contentType) {
 	return (contentType && contentType.indexOf('video') > -1);
-}
-
-function addExpandedNode(id) {
-	_Logger.log(_LogType.INIT, 'addExpandedNode', id);
-
-	if (!id) {
-		return;
-	}
-
-	var alreadyStored = getExpanded()[id];
-
-	if (alreadyStored !== undefined) {
-		return;
-	}
-
-	getExpanded()[id] = true;
-	LSWrapper.setItem(expandedIdsKey, JSON.stringify(Structr.expanded));
-
-}
-
-function removeExpandedNode(id) {
-	_Logger.log(_LogType.INIT, 'removeExpandedNode', id);
-
-	if (!id) {
-		return;
-	}
-
-	delete getExpanded()[id];
-	LSWrapper.setItem(expandedIdsKey, JSON.stringify(Structr.expanded));
-}
-
-function isExpanded(id) {
-	_Logger.log(_LogType.INIT, 'id, getExpanded()[id]', id, getExpanded()[id]);
-
-	if (!id)
-		return false;
-
-	var isExpanded = getExpanded()[id] === true ? true : false;
-
-	_Logger.log(_LogType.INIT, isExpanded);
-
-	return isExpanded;
-}
-
-function getExpanded() {
-	if (!Structr.expanded) {
-		Structr.expanded = JSON.parse(LSWrapper.getItem(expandedIdsKey));
-	}
-
-	if (!Structr.expanded) {
-		Structr.expanded = {};
-	}
-	return Structr.expanded;
 }
 
 function formatKey(text) {
@@ -1663,48 +1658,6 @@ function formatKey(text) {
 		}
 	}
 	return result;
-}
-
-function isDisabled(button) {
-	return $(button).data('disabled');
-}
-
-function disable(button, callback) {
-	var b = $(button);
-	b.data('disabled', true);
-	b.addClass('disabled');
-	if (callback) {
-		b.off('click');
-		b.on('click', callback);
-		b.data('disabled', false);
-		//enable(button, callback);
-	}
-}
-
-function enable(button, func) {
-	var b = $(button);
-	b.data('disabled', false);
-	b.removeClass('disabled');
-	if (func) {
-		b.off('click');
-		b.on('click', func);
-	}
-}
-
-function setPosition(parentId, nodeUrl, pos) {
-	var toPut = {};
-	toPut[parentId] = pos;
-	$.ajax({
-		url: nodeUrl + '/in',
-		type: 'PUT',
-		async: false,
-		dataType: 'json',
-		contentType: 'application/json; charset=utf-8',
-		data: JSON.stringify(toPut),
-		success: function(data) {
-			//appendElement(parentId, elementId, data);
-		}
-	});
 }
 
 var keyEventBlocked = true;
@@ -1733,12 +1686,10 @@ function showLoadingSpinner() {
 			backgroundColor: 'transparent'
 		}
 	});
-//	main.append('<div id="structr-loading-spinner"><img src="/structr/' + _Icons.ajax_loader_1 + '"></div>');
 }
 
 function hideLoadingSpinner() {
 	$.unblockUI({
 		fadeOut: 0
 	});
-//	main.remove('#structr-loading-spinner');
 }

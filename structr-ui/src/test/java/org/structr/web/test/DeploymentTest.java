@@ -27,6 +27,8 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import org.junit.Assert;
 import static org.junit.Assert.fail;
 import org.junit.Test;
 import org.structr.common.error.FrameworkException;
@@ -37,7 +39,11 @@ import org.structr.core.graph.NodeAttribute;
 import org.structr.core.graph.Tx;
 import org.structr.core.property.PropertyKey;
 import org.structr.core.property.PropertyMap;
+import org.structr.dynamic.File;
+import org.structr.web.common.FileHelper;
 import org.structr.web.common.StructrUiTest;
+import org.structr.web.entity.FileBase;
+import org.structr.web.entity.Folder;
 import org.structr.web.entity.dom.Content;
 import org.structr.web.entity.dom.DOMElement;
 import org.structr.web.entity.dom.DOMNode;
@@ -354,50 +360,7 @@ public class DeploymentTest extends StructrUiTest {
 	}
 
 	@Test
-	public void test08SharedTemplatesWithChildren() {
-
-		// setup
-		try (final Tx tx = app.tx()) {
-
-			// create first page
-			final Page page1 = Page.createNewPage(securityContext,   "test08_1");
-			final Html html1 = createElement(page1, page1, "html");
-			final Head head1 = createElement(page1, html1, "head");
-			createElement(page1, head1, "title", "test08_1");
-
-			final Body body1 = createElement(page1, html1, "body");
-			final Div div1   = createElement(page1, body1, "div");
-
-			final Template template1 = createTemplate(page1, div1, "template source - öäüÖÄÜß'\"'`");
-			createElement(page1, template1, "div", "test1");
-			createElement(page1, template1, "div", "test1");
-
-			final Template component = createComponent(template1);
-
-			// create second page
-			final Page page2 = Page.createNewPage(securityContext,   "test08_2");
-			final Html html2 = createElement(page2, page2, "html");
-			final Head head2 = createElement(page2, html2, "head");
-			createElement(page2, head2, "title", "test08_2");
-
-			final Body body2 = createElement(page2, html2, "body");
-			final Div div2   = createElement(page2, body2, "div");
-
-			// re-use template from above
-			cloneComponent(component, div2);
-
-			tx.success();
-
-		} catch (FrameworkException fex) {
-			fail("Unexpected exception.");
-		}
-
-		// test
-		compare(calculateHash(), true);
-	}
-
-	@Test
-	public void test09SharedComponent() {
+	public void test09SharedTemplatesWithChildren() {
 
 		// setup
 		try (final Tx tx = app.tx()) {
@@ -411,10 +374,11 @@ public class DeploymentTest extends StructrUiTest {
 			final Body body1 = createElement(page1, html1, "body");
 			final Div div1   = createElement(page1, body1, "div");
 
-			createElement(page1, div1, "div", "test1");
-			createElement(page1, div1, "div", "test1");
+			final Template template1 = createTemplate(page1, div1, "template source - öäüÖÄÜß'\"'`");
+			createElement(page1, template1, "div", "test1");
+			createElement(page1, template1, "div", "test1");
 
-			final Div component = createComponent(div1);
+			final Template component = createComponent(template1);
 
 			// create second page
 			final Page page2 = Page.createNewPage(securityContext,   "test09_2");
@@ -439,16 +403,58 @@ public class DeploymentTest extends StructrUiTest {
 	}
 
 	@Test
-	public void test10TemplateInTbody() {
+	public void test10SharedComponent() {
 
 		// setup
 		try (final Tx tx = app.tx()) {
 
 			// create first page
-			final Page page1 = Page.createNewPage(securityContext,   "test10");
+			final Page page1 = Page.createNewPage(securityContext,   "test10_1");
 			final Html html1 = createElement(page1, page1, "html");
 			final Head head1 = createElement(page1, html1, "head");
-			createElement(page1, head1, "title", "test09_1");
+			createElement(page1, head1, "title", "test10_1");
+
+			final Body body1 = createElement(page1, html1, "body");
+			final Div div1   = createElement(page1, body1, "div");
+
+			createElement(page1, div1, "div", "test1");
+			createElement(page1, div1, "div", "test1");
+
+			final Div component = createComponent(div1);
+
+			// create second page
+			final Page page2 = Page.createNewPage(securityContext,   "test10_2");
+			final Html html2 = createElement(page2, page2, "html");
+			final Head head2 = createElement(page2, html2, "head");
+			createElement(page2, head2, "title", "test10_2");
+
+			final Body body2 = createElement(page2, html2, "body");
+			final Div div2   = createElement(page2, body2, "div");
+
+			// re-use template from above
+			cloneComponent(component, div2);
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+			fail("Unexpected exception.");
+		}
+
+		// test
+		compare(calculateHash(), true);
+	}
+
+	@Test
+	public void test11TemplateInTbody() {
+
+		// setup
+		try (final Tx tx = app.tx()) {
+
+			// create first page
+			final Page page1 = Page.createNewPage(securityContext,   "test11");
+			final Html html1 = createElement(page1, page1, "html");
+			final Head head1 = createElement(page1, html1, "head");
+			createElement(page1, head1, "title", "test11_1");
 
 			final Body body1  = createElement(page1, html1, "body");
 			final Table table = createElement(page1, body1, "table");
@@ -472,16 +478,16 @@ public class DeploymentTest extends StructrUiTest {
 	}
 
 	@Test
-	public void test11EmptyContentElementWithContentType() {
+	public void test12EmptyContentElementWithContentType() {
 
 		// setup
 		try (final Tx tx = app.tx()) {
 
 			// create first page
-			final Page page = Page.createNewPage(securityContext,   "test11");
+			final Page page = Page.createNewPage(securityContext,   "test12");
 			final Html html = createElement(page, page, "html");
 			final Head head = createElement(page, html, "head");
-			createElement(page, head, "title", "test11");
+			createElement(page, head, "title", "test12");
 
 			final Body body      = createElement(page, html, "body");
 			final Script script1 = createElement(page, body, "script");
@@ -502,16 +508,16 @@ public class DeploymentTest extends StructrUiTest {
 	}
 
 	@Test
-	public void test12EmptyContentElement() {
+	public void test13EmptyContentElement() {
 
 		// setup
 		try (final Tx tx = app.tx()) {
 
 			// create first page
-			final Page page = Page.createNewPage(securityContext,   "test12");
+			final Page page = Page.createNewPage(securityContext,   "test13");
 			final Html html = createElement(page, page, "html");
 			final Head head = createElement(page, html, "head");
-			createElement(page, head, "title", "test12");
+			createElement(page, head, "title", "test13");
 
 			final Body body      = createElement(page, html, "body");
 			final Script script1 = createElement(page, body, "script", "");
@@ -526,10 +532,271 @@ public class DeploymentTest extends StructrUiTest {
 		compare(calculateHash(), false);
 	}
 
+	@Test
+	public void test14FileAttributesInFolders() {
+
+		final String folderPath = "/deeply/nested/Folder Structure/with spaces";
+		final String fileName   = "test14.txt";
+
+		// setup
+		try (final Tx tx = app.tx()) {
+
+			final Folder folder = FileHelper.createFolderPath(securityContext, folderPath);
+			final FileBase file = FileHelper.createFile(securityContext, "test".getBytes("utf-8"), "text/plain", File.class, fileName);
+
+			file.setProperty(File.parent, folder);
+			file.setProperty(File.visibleToPublicUsers, true);
+			file.setProperty(File.visibleToPublicUsers, true);
+			file.setProperty(File.visibleToAuthenticatedUsers, true);
+			file.setProperty(File.enableBasicAuth, true);
+			file.setProperty(File.useAsJavascriptLibrary, true);
+
+			tx.success();
+
+		} catch (IOException | FrameworkException fex) {
+			fex.printStackTrace();
+			fail("Unexpected exception.");
+		}
+
+		// test
+		doImportExportRoundtrip(true);
+
+		// check
+		try (final Tx tx = app.tx()) {
+
+			final Folder folder = app.nodeQuery(Folder.class).andName("with spaces").getFirst();
+
+			Assert.assertNotNull("Invalid deployment result", folder);
+
+			final FileBase file     = app.nodeQuery(File.class).and(File.parent, folder).and(File.name, fileName).getFirst();
+
+			Assert.assertNotNull("Invalid deployment result", file);
+
+			Assert.assertEquals("Deployment import does not restore attributes correctly", folder, file.getProperty(File.parent));
+			Assert.assertTrue("Deployment import does not restore attributes correctly", file.getProperty(File.visibleToPublicUsers));
+			Assert.assertTrue("Deployment import does not restore attributes correctly", file.getProperty(File.visibleToPublicUsers));
+			Assert.assertTrue("Deployment import does not restore attributes correctly", file.getProperty(File.visibleToAuthenticatedUsers));
+			Assert.assertTrue("Deployment import does not restore attributes correctly", file.getProperty(File.enableBasicAuth));
+			Assert.assertTrue("Deployment import does not restore attributes correctly", file.getProperty(File.useAsJavascriptLibrary));
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+			fail("Unexpected exception.");
+		}
+
+	}
+
+	@Test
+	public void test15FileAttributesOnUpdate() {
+
+		final String folderPath = "/deeply/nested/Folder Structure/with spaces";
+		final String fileName   = "test15.txt";
+
+		// setup
+		try (final Tx tx = app.tx()) {
+
+			final Folder folder = FileHelper.createFolderPath(securityContext, folderPath);
+			final FileBase file = FileHelper.createFile(securityContext, "test".getBytes("utf-8"), "text/plain", File.class, fileName);
+
+			file.setProperty(File.parent, folder);
+			file.setProperty(File.visibleToPublicUsers, true);
+			file.setProperty(File.visibleToPublicUsers, true);
+			file.setProperty(File.visibleToAuthenticatedUsers, true);
+			file.setProperty(File.enableBasicAuth, true);
+			file.setProperty(File.useAsJavascriptLibrary, true);
+
+			tx.success();
+
+		} catch (IOException | FrameworkException fex) {
+			fex.printStackTrace();
+			fail("Unexpected exception.");
+		}
+
+		// test, don't clean the database but modify the file flags
+		doImportExportRoundtrip(true, false, new Function() {
+
+			@Override
+			public Object apply(Object t) {
+
+				try (final Tx tx = app.tx()) {
+
+					final FileBase file = app.nodeQuery(File.class).and(File.name, fileName).getFirst();
+					file.setProperty(File.visibleToPublicUsers, false);
+					file.setProperty(File.visibleToPublicUsers, false);
+					file.setProperty(File.visibleToAuthenticatedUsers, false);
+					file.setProperty(File.enableBasicAuth, false);
+					file.setProperty(File.useAsJavascriptLibrary, false);
+
+					tx.success();
+
+				} catch (FrameworkException fex) {}
+
+				return null;
+			}
+
+		});
+
+		// check
+		try (final Tx tx = app.tx()) {
+
+			final Folder folder = app.nodeQuery(Folder.class).andName("with spaces").getFirst();
+
+			Assert.assertNotNull("Invalid deployment result", folder);
+
+			final FileBase file     = app.nodeQuery(File.class).and(File.parent, folder).and(File.name, fileName).getFirst();
+
+			Assert.assertNotNull("Invalid deployment result", file);
+
+			Assert.assertEquals("Deployment import of existing file does not restore attributes correctly", folder, file.getProperty(File.parent));
+			Assert.assertTrue("Deployment import of existing file does not restore attributes correctly", file.getProperty(File.visibleToPublicUsers));
+			Assert.assertTrue("Deployment import of existing file does not restore attributes correctly", file.getProperty(File.visibleToPublicUsers));
+			Assert.assertTrue("Deployment import of existing file does not restore attributes correctly", file.getProperty(File.visibleToAuthenticatedUsers));
+			Assert.assertTrue("Deployment import of existing file does not restore attributes correctly", file.getProperty(File.enableBasicAuth));
+			Assert.assertTrue("Deployment import of existing file does not restore attributes correctly", file.getProperty(File.useAsJavascriptLibrary));
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+			fail("Unexpected exception.");
+		}
+
+	}
+
+	@Test
+	public void test16SharedTemplateWithChildren() {
+
+		// setup
+		try (final Tx tx = app.tx()) {
+
+			final Page page = Page.createNewPage(securityContext,   "test16");
+			final Html html = createElement(page, page, "html");
+			final Head head = createElement(page, html, "head");
+			createElement(page, head, "title", "test16");
+
+			final Body body = createElement(page, html, "body");
+			final Div div1  = createElement(page, body, "div");
+
+			final Template template = createTemplate(page, div1, "template source - öäüÖÄÜß'\"'`");
+
+			createElement(page, template, "div");
+			final DOMNode table = createElement(page, template, "table");
+			final DOMNode tr    = createElement(page, table, "tr");
+			createElement(page, tr, "td");
+			createElement(page, tr, "td");
+
+			createComponent(template);
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+			fail("Unexpected exception.");
+		}
+
+		// test
+		compare(calculateHash(), true, false);
+	}
+
+	@Test
+	public void test17NamedNonSharedTemplateWithChildren() {
+
+		// setup
+		try (final Tx tx = app.tx()) {
+
+			final Page page = Page.createNewPage(securityContext,   "test17");
+			final Html html = createElement(page, page, "html");
+			final Head head = createElement(page, html, "head");
+			createElement(page, head, "title", "test17");
+
+			final Body body = createElement(page, html, "body");
+
+			final Template template = createTemplate(page, body, "${render(children)}");
+			template.setProperty(AbstractNode.name, "a-template");
+			
+			final Template sharedTemplate = createComponent(template);
+			
+			// remove original template from page
+			app.delete(template);
+
+			createElement(page, sharedTemplate, "div");
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+			fail("Unexpected exception.");
+		}
+
+		// test
+		compare(calculateHash(), true, false);
+	}
+	
+	@Test
+	public void test18NonNamedNonSharedTemplateWithChildren() {
+
+		// setup
+		try (final Tx tx = app.tx()) {
+
+			final Page page = Page.createNewPage(securityContext,   "test18");
+			final Html html = createElement(page, page, "html");
+			final Head head = createElement(page, html, "head");
+			createElement(page, head, "title", "test18");
+
+			final Body body = createElement(page, html, "body");
+
+			final Template template = createTemplate(page, body, "${render(children)}");
+			
+			final Template sharedTemplate = createComponent(template);
+			
+			// remove original template from page
+			app.delete(template);
+
+			createElement(page, sharedTemplate, "div");
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+			fail("Unexpected exception.");
+		}
+
+		// test
+		compare(calculateHash(), true, false);
+	}
+
+	@Test
+	public void test19HtmlEntities() {
+
+		// setup
+		try (final Tx tx = app.tx()) {
+
+			final Page page = Page.createNewPage(securityContext,   "test19");
+			final Html html = createElement(page, page, "html");
+			final Head head = createElement(page, html, "head");
+			createElement(page, head, "title", "test19");
+
+			final Body body = createElement(page, html, "body");
+			final Div div1  = createElement(page, body, "div");
+
+			final Content content = createContent(page, div1, "<b>Test</b>");
+			content.setProperty(Content.contentType, "text/html");
+
+			tx.success();
+
+		} catch (FrameworkException fex) {
+			fail("Unexpected exception.");
+		}
+
+		// test
+		compare(calculateHash(), false, false);
+	}
+
 	// ----- private methods -----
 	private void compare(final String sourceHash, final boolean deleteTestDirectory) {
+		compare(sourceHash, deleteTestDirectory, true);
 
-		doImportExportRoundtrip(deleteTestDirectory);
+	}
+	private void compare(final String sourceHash, final boolean deleteTestDirectory, final boolean cleanDatabase) {
+
+		doImportExportRoundtrip(deleteTestDirectory, cleanDatabase, null);
 
 		final String roundtripHash = calculateHash();
 
@@ -542,8 +809,11 @@ public class DeploymentTest extends StructrUiTest {
 		}
 	}
 
-
 	private void doImportExportRoundtrip(final boolean deleteTestDirectory) {
+		doImportExportRoundtrip(deleteTestDirectory, true, null);
+	}
+
+	private void doImportExportRoundtrip(final boolean deleteTestDirectory, final boolean cleanDatabase, final Function callback) {
 
 		final DeployCommand cmd = app.command(DeployCommand.class);
 		final Path tmp          = Paths.get("/tmp/structr-deployment-test" + System.currentTimeMillis() + System.nanoTime());
@@ -559,17 +829,13 @@ public class DeploymentTest extends StructrUiTest {
 				// execute deploy command
 				cmd.execute(firstExportParams);
 
-				// clean database
-				try (final Tx tx = app.tx()) {
+				if (cleanDatabase) {
+					cleanDatabase();
+				}
 
-					for (final DOMNode domNode : app.nodeQuery(DOMNode.class).getAsList()) {
-						app.delete(domNode);
-					}
-
-					tx.success();
-
-				} catch (FrameworkException fex) {
-					fail("Unexpected exception.");
+				// apply callback if present
+				if (callback != null) {
+					callback.apply(null);
 				}
 
 				// import from exported source

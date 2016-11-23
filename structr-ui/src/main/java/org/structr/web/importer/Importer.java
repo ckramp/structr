@@ -19,13 +19,9 @@
 package org.structr.web.importer;
 
 import java.io.ByteArrayInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,11 +39,6 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.text.WordUtils;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.config.ConnectionConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Comment;
@@ -101,6 +92,7 @@ import org.structr.web.entity.dom.Template;
 import org.structr.web.entity.html.Body;
 import org.structr.web.entity.html.Head;
 import org.structr.web.maintenance.DeployCommand;
+import org.structr.websocket.command.CreateComponentCommand;
 
 //~--- classes ----------------------------------------------------------------
 /**
@@ -213,6 +205,10 @@ public class Importer {
 
 			if (!isDeployment) {
 				logger.info("##### Start parsing code for page {} #####", new Object[]{name});
+			} else {
+
+				// a trailing slash to all void/self-closing tags so the XML parser can parse it correctly
+				code = code.replaceAll("<(area|base|br|col|command|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)([^>]*)>", "<$1$2/>");
 			}
 
 			if (fragment) {
@@ -240,9 +236,6 @@ public class Importer {
 			} else {
 
 				if (isDeployment) {
-
-					// a trailing slash to all void/self-closing tags so the XML parser can parse it correctly
-					code = code.replaceAll("<(area|base|br|col|command|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)([^>]*)>", "<$1$2/>");
 
 					parsedDocument = Jsoup.parse(code, "", Parser.xmlParser());
 
@@ -293,6 +286,10 @@ public class Importer {
 	}
 
 	public DOMNode createComponentChildNodes(final Page page) throws FrameworkException {
+		return createComponentChildNodes(null, page);
+	}
+
+	public DOMNode createComponentChildNodes(final DOMNode parent, final Page page) throws FrameworkException {
 
 		final Element head = parsedDocument.head();
 		final Element body = parsedDocument.body();
@@ -309,11 +306,11 @@ public class Importer {
 
 		if (body != null && !body.html().isEmpty()) {
 
-			return createChildNodes(body, null, page);
+			return createChildNodes(body, parent, page);
 		}
 
 		// fallback, no head no body => document is parent
-		return createChildNodes(parsedDocument, null, page);
+		return createChildNodes(parsedDocument, parent, page);
 	}
 
 	public DOMNode createChildNodes(final DOMNode parent, final Page page) throws FrameworkException {
@@ -623,7 +620,15 @@ public class Importer {
 				if (type.equals("#text")) {
 
 					tag = "";
-					content = ((TextNode) node).getWholeText();
+
+					if (isDeployment) {
+
+						content = ((TextNode) node).getWholeText();
+
+					} else {
+
+						content = ((TextNode) node).text();
+					}
 
 					// Add content node for whitespace within <p> elements only
 					if (!("p".equals(startNode.nodeName().toLowerCase())) && StringUtils.isWhitespace(content)) {
@@ -654,15 +659,19 @@ public class Importer {
 				final String src = node.attr("src");
 				if (src != null) {
 
-					final DOMNode template;
+					DOMNode template = null;
 
 					if (DeployCommand.isUuid(src)) {
 
-						template = (DOMNode) StructrApp.getInstance().get(src);
+						template = (DOMNode) StructrApp.getInstance().nodeQuery(Template.class).and(GraphObject.id, src).getFirst();
 
 					} else {
 
-						template = Importer.findTemplateByName(src);
+						template = Importer.findSharedComponentByName(src);
+						if (template == null) {
+
+							template = Importer.findTemplateByName(src);
+						}
 					}
 
 					if (template != null) {
@@ -682,7 +691,7 @@ public class Importer {
 
 					} else {
 
-						logger.warn("Unable to find shared component {}, template ignored!", src);
+						logger.warn("Unable to find template or shared component {}, template ignored!", src);
 					}
 
 				} else {
@@ -698,7 +707,7 @@ public class Importer {
 					DOMNode component = null;
 					if (DeployCommand.isUuid(src)) {
 
-						component = app.get(DOMNode.class, src);
+						component = app.nodeQuery(DOMNode.class).and(GraphObject.id, src).getFirst();
 
 					} else {
 
@@ -897,7 +906,7 @@ public class Importer {
 
 			final Content contentNode = (Content)page.createTextNode("");
 			parent.appendChild(contentNode);
-			
+
 			if (commentHandler != null) {
 
 				commentHandler.handleComment(page, contentNode, instructions, true);
@@ -1160,58 +1169,24 @@ public class Importer {
 
 	private void copyURLToFile(final String address, final java.io.File fileOnDisk) throws IOException {
 
-		final URI     url = URI.create(address);
-		final HttpGet req = new HttpGet(url);
+		try {
 
-		req.addHeader("User-Agent", "curl/7.35.0");
+			HttpHelper.streamURLToFile(address, fileOnDisk);
 
-		logger.info("Downloading from {}", address);
+		} catch (FrameworkException ex) {
 
-		final CloseableHttpClient client = HttpClients.custom()
-			.setDefaultConnectionConfig(ConnectionConfig.DEFAULT)
-			.setUserAgent("curl/7.35.0")
-			.build();
+			logger.warn(null, ex);
 
-		final CloseableHttpResponse resp = client.execute(req);
-
-		final int statusCode = resp.getStatusLine().getStatusCode();
-
-		if (statusCode == 200) {
-
-			try (final InputStream is = resp.getEntity().getContent()) {
-
-				try (final OutputStream os = new FileOutputStream(fileOnDisk)) {
-
-					IOUtils.copy(is, os);
-				}
-			}
-
-		} else {
-
-			String content = IOUtils.toString(resp.getEntity().getContent(), HttpHelper.charset(resp));
-
-			// Skip BOM to workaround this Jsoup bug: https://github.com/jhy/jsoup/issues/348
-			if (content.charAt(0) == 65279) {
-				content = content.substring(1);
-			}
-
-			System.out.println("Response body: " + content);
-			logger.warn("Unable to create file from URI {}: status code was {}", new Object[]{ address, statusCode });
 		}
+
 	}
 
 	public static DOMNode findSharedComponentByName(final String name) throws FrameworkException {
 
-		for (final DOMNode n : StructrApp.getInstance().nodeQuery(DOMNode.class).andName(name).getAsList()) {
+		for (final DOMNode n : StructrApp.getInstance().nodeQuery(DOMNode.class).andName(name).and(DOMNode.ownerDocument, CreateComponentCommand.getOrCreateHiddenDocument()).getAsList()) {
 
-			// Ignore nodes in trash
-			if (n.getProperty(DOMNode.parent) == null && n.getOwnerDocumentAsSuperUser() == null) {
-				continue;
-			}
-
-			// IGNORE everything that REFERENCES a shared component!
-			if (n.getProperty(DOMNode.sharedComponent) == null) {
-
+			// only return toplevel nodes in shared components
+			if (n.getProperty(DOMNode.parent) == null) {
 				return n;
 			}
 		}
