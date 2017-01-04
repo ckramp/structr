@@ -20,10 +20,7 @@ package org.structr.core.entity;
 
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
-import org.structr.common.Permission;
 import org.structr.common.PropertyView;
-import org.structr.common.SecurityDelegate;
 import org.structr.common.error.FrameworkException;
 import org.structr.core.entity.relationship.Groups;
 import org.structr.core.property.ConstantBooleanProperty;
@@ -31,13 +28,6 @@ import org.structr.core.property.EndNodes;
 import org.structr.core.property.Property;
 import org.structr.schema.SchemaService;
 
-//~--- classes ----------------------------------------------------------------
-
-/**
- *
- *
- *
- */
 public class Group extends AbstractUser implements Principal {
 
 	public static final Property<List<Principal>> members = new EndNodes<>("members", Groups.class);
@@ -84,6 +74,7 @@ public class Group extends AbstractUser implements Principal {
 		return principals;
 	}
 
+	/*
 	public void addAllowedPermission(final Permission permission) {
 		SecurityDelegate.addPermission(this, Principal.allowed, permission);
 	}
@@ -109,5 +100,5 @@ public class Group extends AbstractUser implements Principal {
 	public Set<String> getDeniedPermissions() {
 		return SecurityDelegate.getPermissionSet(dbNode, Principal.denied);
 	}
-
+	*/
 }

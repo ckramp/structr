@@ -31,8 +31,10 @@ import org.structr.api.graph.Node;
 import org.structr.api.graph.Relationship;
 import org.structr.api.graph.RelationshipType;
 import org.structr.api.util.Iterables;
+import org.structr.common.EntityAndPropertiesContainer;
 import org.structr.common.PropertyView;
 import org.structr.common.SecurityContext;
+import org.structr.common.error.FrameworkException;
 import org.structr.core.GraphObject;
 import org.structr.core.Services;
 import org.structr.core.property.PropertyKey;
@@ -123,6 +125,20 @@ public abstract class AbstractEndpoint {
 		});
 
 		return eagerList;
+	}
 
+	protected GraphObject unwrap(final SecurityContext securityContext, final Class actualType, final GraphObject node, final PropertyMap properties) throws FrameworkException {
+
+		if (node != null && node instanceof EntityAndPropertiesContainer) {
+
+			final EntityAndPropertiesContainer container = (EntityAndPropertiesContainer)node;
+			final Map<String, Object> sourceProperties   = container.getProperties();
+
+			properties.putAll(PropertyMap.inputTypeToJavaType(securityContext, actualType, sourceProperties));
+
+			return container.getEntity();
+		}
+
+		return node;
 	}
 }

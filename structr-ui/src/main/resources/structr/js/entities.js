@@ -17,13 +17,12 @@
  * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
 var buttonClicked;
-var activeElements = {};
-var activeQueryTabPrefix = 'structrActiveQueryTab_' + port;
-var activeEditTabPrefix = 'structrActiveEditTab_' + port;
 
 var _Entities = {
+	activeElements: {},
+	activeQueryTabPrefix: 'structrActiveQueryTab_' + port,
+	activeEditTabPrefix: 'structrActiveEditTab_' + port,
 	numberAttrs: ['position', 'size'],
-	hiddenAttrs: ['base'], //'deleted', 'ownerId', 'owner', 'group', 'categories', 'tag', 'createdBy', 'visibilityStartDate', 'visibilityEndDate', 'parentFolder', 'url', 'path', 'elements', 'components', 'paths', 'parents'],
 	readOnlyAttrs: ['lastModifiedDate', 'createdDate', 'createdBy', 'id', 'checksum', 'size', 'version', 'relativeFilePath'],
 	changeBooleanAttribute: function(attrElement, value, activeLabel, inactiveLabel) {
 
@@ -154,8 +153,7 @@ var _Entities = {
 			Command.setProperty(entity.id, key, null, false, function() {
 				inp.val(null);
 				blinkGreen(inp);
-				dialogMsg.html('<div class="infoBox success">Property "' + key + '" was set to null.</div>');
-				$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
+				Structr.showAndHideInfoBoxMessage('Property "' + key + '" was set to null.', 'success', 2000, 1000);
 			});
 		});
 
@@ -186,8 +184,6 @@ var _Entities = {
 
 		_Entities.activateTabs(entity.id, '#data-tabs', '#content-tab-rest');
 
-		//_Entities.appendInput(dialog, entity, 'partialUpdateKey', 'Types to trigger partial update', '');
-
 	},
 	activateTabs: function(nodeId, elId, activeId) {
 		var el = $(elId);
@@ -199,12 +195,12 @@ var _Entities = {
 				tab.addClass('active');
 				el.children('div').hide();
 				var id = tab.prop('id').substring(4);
-				LSWrapper.setItem(activeQueryTabPrefix  + '_' + nodeId, id);
+				LSWrapper.setItem(_Entities.activeQueryTabPrefix  + '_' + nodeId, id);
 				var content = $('#content-tab-' + id);
 				content.show();
 			});
 		});
-		var id = LSWrapper.getItem(activeQueryTabPrefix  + '_' + nodeId) || activeId.substring(13);
+		var id = LSWrapper.getItem(_Entities.activeQueryTabPrefix  + '_' + nodeId) || activeId.substring(13);
 		var tab = $('#tab-' + id);
 		if (!tab.hasClass('active')) {
 			tab.click();
@@ -305,8 +301,7 @@ var _Entities = {
 
 								dialogSaveButton.prop("disabled", true).addClass('disabled');
 								saveAndClose.prop("disabled", true).addClass('disabled');
-								dialogMsg.html('<div class="infoBox success">Node source saved and DOM tree rebuilt.</div>');
-								$('.infoBox', dialogMsg).delay(2000).fadeOut(200);
+								Structr.showAndHideInfoBoxMessage('Node source saved and DOM tree rebuilt.', 'success', 2000, 200);
 
 								if (_Entities.isExpanded(Structr.node(entity.id))) {
 									$('.expand_icon', Structr.node(entity.id)).click().click();
@@ -455,7 +450,7 @@ var _Entities = {
      		contentEl.append('<div class="propTabContent" id="tabView-' + name + '"></div>');
 			$('#tabView-' + name).show();
 			self.addClass('active');
-			LSWrapper.setItem(activeEditTabPrefix  + '_' + entity.id, name);
+			LSWrapper.setItem(_Entities.activeEditTabPrefix  + '_' + entity.id, name);
 
 			if (typeof initCallback === "function") {
 				initCallback();
@@ -497,7 +492,7 @@ var _Entities = {
 				var tabView = $('#tabView-' + view);
 				fastRemoveAllChildren(tabView[0]);
 				tabView.show();
-				LSWrapper.setItem(activeEditTabPrefix  + '_' + entity.id, view);
+				LSWrapper.setItem(_Entities.activeEditTabPrefix  + '_' + entity.id, view);
 
 				Command.getSchemaInfo(entity.type, function(schemaInfo) {
 					var typeInfo = {};
@@ -508,7 +503,7 @@ var _Entities = {
 				});
 			});
 		});
-		activeView = activeViewOverride || LSWrapper.getItem(activeEditTabPrefix  + '_' + entity.id) || activeView;
+		activeView = activeViewOverride || LSWrapper.getItem(_Entities.activeEditTabPrefix  + '_' + entity.id) || activeView;
 		$('#tab-' + activeView).click();
 
 	},
@@ -521,6 +516,13 @@ var _Entities = {
 			success: function(data) {
 				// Default: Edit node id
 				var id = entity.id;
+
+				var tempNodeCache = new AsyncObjectCache(function(id) {
+					Command.get(id, function (node) {
+						tempNodeCache.addObject(node);
+					});
+				});
+
 				// ID of graph object to edit
 				$(data.result).each(function(i, res) {
 
@@ -572,13 +574,12 @@ var _Entities = {
 							var cell = $('.value.' + key + '_', props);
 
 							if (!typeInfo[key]) {
-								cell.append(formatValueInputField(key, res[key], isPassword, isReadOnly));
+								cell.append(formatValueInputField(key, res[key], isPassword, isReadOnly, isMultiline));
 
 							} else {
 
 								var type = typeInfo[key].type;
 
-								var isHidden     = isIn(key, _Entities.hiddenAttrs);
 								var isReadOnly   = isIn(key, _Entities.readOnlyAttrs) || (typeInfo[key].readOnly);
 								var isSystem     = typeInfo[key].system;
 								var isBoolean    = false;
@@ -586,11 +587,13 @@ var _Entities = {
 								var isPassword   = false;
 								var isRelated    = false;
 								var isCollection = false;
+								var isMultiline  = false;
 
 								if (type) {
-									isBoolean = (type === 'Boolean'); //typeInfo[key].className === 'org.structr.core.property.BooleanProperty'; //isIn(key, _Entities.booleanAttrs);
-									isDate = (type === 'Date'); //typeInfo[key].className === 'org.structr.core.property.ISO8601DateProperty'; //isIn(key, _Entities.dateAttrs);
+									isBoolean = (type === 'Boolean');
+									isDate = (type === 'Date');
 									isPassword = (typeInfo[key].className === 'org.structr.core.property.PasswordProperty');
+									isMultiline = (typeInfo[key].format === 'multi-line');
 
 									isRelated = typeInfo[key].relatedType;
 
@@ -599,31 +602,30 @@ var _Entities = {
 									}
 								}
 
-								if (!key.startsWith('_html_') && !isHidden) {
+								if (!key.startsWith('_html_')) {
  									if (isBoolean) {
 										cell.removeClass('value').append('<input type="checkbox" class="' + key + '_">');
 										var checkbox = $(props.find('input[type="checkbox"].' + key + '_'));
-										Command.getProperty(id, key, function(val) {
-											if (val) {
-												checkbox.prop('checked', true);
-											}
-											if ((!isReadOnly || isAdmin) && !isSystem) {
-												checkbox.on('change', function() {
-													var checked = checkbox.prop('checked');
-													_Entities.setProperty(id, key, checked, false, function(newVal) {
-														if (val !== newVal) {
-															blinkGreen(cell);
-														}
-														checkbox.prop('checked', newVal);
-														val = newVal;
-													});
+
+										var val = res[key];
+										if (val) {
+											checkbox.prop('checked', true);
+										}
+										if ((!isReadOnly || isAdmin) && !isSystem) {
+											checkbox.on('change', function() {
+												var checked = checkbox.prop('checked');
+												_Entities.setProperty(id, key, checked, false, function(newVal) {
+													if (val !== newVal) {
+														blinkGreen(cell);
+													}
+													checkbox.prop('checked', newVal);
+													val = newVal;
 												});
-											} else {
-												checkbox.prop('disabled', 'disabled');
-												checkbox.addClass('readOnly');
-												checkbox.addClass('disabled');
-											}
-										});
+											});
+										} else {
+											checkbox.prop('disabled', 'disabled').addClass('readOnly').addClass('disabled');
+										}
+
 									} else if (isDate && !isReadOnly) {
 
 										_Entities.appendDatePicker(cell, res, key, typeInfo[key].format);
@@ -636,27 +638,23 @@ var _Entities = {
 
 												var nodeId = res[key].id || res[key];
 
-												Command.get(nodeId, function(node) {
+												tempNodeCache.registerCallbackForId(nodeId, function(node) {
 
 													_Entities.appendRelatedNode(cell, node, function(nodeEl) {
-
 														$('.remove', nodeEl).on('click', function(e) {
 															e.preventDefault();
 															_Entities.setProperty(id, key, null, false, function(newVal) {
 																if (!newVal) {
+																	nodeEl.remove();
 																	blinkGreen(cell);
-																	dialogMsg.html('<div class="infoBox success">Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".</div>');
-																	$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
-																	cell.empty();
+																	Structr.showAndHideInfoBoxMessage('Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".', 'success', 2000, 1000);
 																} else {
 																	blinkRed(cell);
 																}
 															});
 															return false;
 														});
-
 													});
-
 												});
 
 											} else {
@@ -665,17 +663,15 @@ var _Entities = {
 
 													var nodeId = obj.id || obj;
 
-													Command.get(nodeId, function(node) {
+													tempNodeCache.registerCallbackForId(nodeId, function(node) {
 
 														_Entities.appendRelatedNode(cell, node, function(nodeEl) {
 															$('.remove', nodeEl).on('click', function(e) {
 																e.preventDefault();
 																Command.removeFromCollection(id, key, node.id, function() {
-																	var nodeEl = $('._' + node.id, cell);
 																	nodeEl.remove();
 																	blinkGreen(cell);
-																	dialogMsg.html('<div class="infoBox success">Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".</div>');
-																	$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
+																	Structr.showAndHideInfoBoxMessage('Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".', 'success', 2000, 1000);
 																});
 																return false;
 															});
@@ -683,7 +679,6 @@ var _Entities = {
 													});
 
 												});
-
 											}
 										}
 
@@ -697,7 +692,7 @@ var _Entities = {
 										});
 
 									} else {
-										cell.append(formatValueInputField(key, res[key], isPassword, isReadOnly));
+										cell.append(formatValueInputField(key, res[key], isPassword, isReadOnly, isMultiline));
 									}
 
 								}
@@ -707,12 +702,13 @@ var _Entities = {
 						var nullIcon = $('#' + null_prefix + key);
 						nullIcon.on('click', function() {
 							var key = $(this).prop('id').substring(null_prefix.length);
-							var input = $('.' + key + '_').find('input');
+							var input    = $('.' + key + '_').find('input');
+							var textarea = $('.' + key + '_').find('textarea');
 							_Entities.setProperty(id, key, null, false, function(newVal) {
 								if (!newVal) {
 									blinkGreen(cell);
-									dialogMsg.html('<div class="infoBox success">Property "' + key + '" was set to null.</div>');
-									$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
+									Structr.showAndHideInfoBoxMessage('Property "' + key + '" was set to null.', 'success', 2000, 1000);
+
 									if (key === 'name') {
 										var entity = StructrModel.objects[id];
 										if (entity.type !== 'Template' && entity.type !== 'Content') {
@@ -723,20 +719,23 @@ var _Entities = {
 									if (isRelated) {
 										cell.empty();
 									}
+									if (isBoolean) {
+										input.prop('checked', false);
+									}
 								} else {
 									blinkRed(input);
 								}
 								if (!isRelated) {
 									input.val(newVal);
+									textarea.val(newVal);
 								}
 							});
 						});
 					});
-					props.append('<tr class="hidden"><td class="key"><input type="text" class="newKey" name="key"></td><td class="value"><input type="text" value=""></td><td></td></tr>');
-					$('.props tr td.value input', dialog).each(function(i, v) {
-						_Entities.activateInput(v, id);
-					});
 
+					props.append('<tr class="hidden"><td class="key"><input type="text" class="newKey" name="key"></td><td class="value"><input type="text" value=""></td><td></td></tr>');
+					$('.props tr td.value input',    dialog).each(function(i, v) { _Entities.activateInput(v, id); });
+					$('.props tr td.value textarea', dialog).each(function(i, v) { _Entities.activateInput(v, id); });
 
 					if (view === '_html_') {
 						$('input[name="_html_' + focusAttr + '"]', props).focus();
@@ -935,8 +934,7 @@ var _Entities = {
 					_Logger.log(_LogType.ENTITIES, 'new key: Command.setProperty(', objId, newKey, val);
 					Command.setProperty(objId, newKey, val, false, function() {
 						blinkGreen(input);
-						dialogMsg.html('<div class="infoBox success">New property "' + newKey + '" was added and saved with value "' + val + '".</div>');
-						$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
+						Structr.showAndHideInfoBoxMessage('New property "' + newKey + '" was added and saved with value "' + val + '".', 'success', 2000, 1000);
 					});
 
 
@@ -951,8 +949,7 @@ var _Entities = {
 							if (isPassword || (newVal && newVal !== oldVal)) {
 								blinkGreen(input);
 								input.val(newVal);
-								dialogMsg.html('<div class="infoBox success">Updated property "' + key + '"' + (!isPassword ? ' with value "' + newVal + '".</div>' : ''));
-								$('.infoBox', dialogMsg).delay(2000).fadeOut(200);
+								Structr.showAndHideInfoBoxMessage('Updated property "' + key + '"' + (!isPassword ? ' with value "' + newVal + '".' : '.'), 'success', 2000, 200);
 
 							} else {
 								input.val(oldVal);
@@ -1388,7 +1385,6 @@ var _Entities = {
 		}
 		var page = node.closest('.page');
 		if (page.length) {
-			//$('#preview_' + Structr.getId(page)).contents().find('[data-structr-id=' + Structr.getId(node) + ']').removeClass('nodeHover');
 			try {
 				$('#preview_' + Structr.getId(page)).contents().find('[data-structr-id]').removeClass('nodeHover');
 			} catch (e) {}
@@ -1453,7 +1449,7 @@ var _Entities = {
 	toggleElement: function(element, expanded) {
 
 		var el = $(element);
-		var id = Structr.getId(el) || Structr.getComponentId(el);
+		var id = Structr.getId(el) || Structr.getComponentId(el) || Structr.getGroupId(el);
 
 		_Logger.log(_LogType.ENTITIES, 'toggleElement: ', el, id);
 
@@ -1505,7 +1501,11 @@ var _Entities = {
 				_Entities.makeAttributeEditable(parentElement, id, attributeSelector, attributeName, w);
 			});
 			if (commitChanges === true) {
-				_Entities.setNewAttributeValue(parentElement, id, attributeName, displayValue, callback);
+				_Entities.setNewAttributeValue(parentElement, id, attributeName, displayValue, callback, function () {
+					var attributeElement = parentElement.find(attributeSelector).first();
+					attributeElement.attr('title', oldValue).text(oldValue);
+					blinkRed(parentElement);
+				});
 			}
 		};
 
@@ -1531,18 +1531,24 @@ var _Entities = {
 		var id = Structr.getId(element);
 		_Entities.setNewAttributeValue(element, id, 'name', newName, callback);
 	},
-	setNewAttributeValue: function(element, id, attributeName, newValue, callback) {
-		Command.setProperty(id, attributeName, newValue, false, function() {
-			blinkGreen(element.find('.' + attributeName + '_').first());
-			if (lastMenuEntry === 'pages') {
-				_Pages.reloadPreviews();
-			} else if (lastMenuEntry === 'files' && attributeName === 'name') {
-				var a = element.closest('td').prev().children('a').first();
-				Command.getProperty(id, 'path', function(newPath) {
-					a.attr('href', newPath);
-				});
+	setNewAttributeValue: function(element, id, attributeName, newValue, callback, failCallback) {
+		Command.setProperty(id, attributeName, newValue, false, function(entity, resultSize, errorOccurred) {
+			if (!errorOccurred || errorOccurred === false) {
+				blinkGreen(element.find('.' + attributeName + '_').first());
+				if (lastMenuEntry === 'pages') {
+					_Pages.reloadPreviews();
+				} else if (lastMenuEntry === 'files' && attributeName === 'name') {
+					var a = element.closest('td').prev().children('a').first();
+					Command.getProperty(id, 'path', function(newPath) {
+						a.attr('href', newPath);
+					});
+				}
+				if (callback) {
+					callback();
+				}
+			} else if (failCallback) {
+				failCallback();
 			}
-			if (callback) callback();
 		});
 	},
 	handleActiveElement: function(entity) {
@@ -1551,9 +1557,9 @@ var _Entities = {
 
 			var idString = 'id_' + entity.id;
 
-			if (!activeElements.hasOwnProperty(idString)) {
+			if (!_Entities.activeElements.hasOwnProperty(idString)) {
 
-				activeElements[idString] = entity;
+				_Entities.activeElements[idString] = entity;
 
 				var parent = $('#activeElements div.inner');
 				var id = entity.id;
@@ -1566,7 +1572,6 @@ var _Entities = {
 
 				var div = $('#active_' + id);
 				var query = entity.query;
-				//var dataKey     = (entity.dataKey.split(',')[entity.recursionDepth] || '');
 				var expand = entity.state === 'Query';
 				var icon = _Icons.brick_icon;
 				var name = '', content = '', action = '';
@@ -1591,8 +1596,6 @@ var _Entities = {
 					default:
 						content = entity.type;
 				}
-
-				console.log(icon);
 
 				div.append('<img class="typeIcon" src="' + icon + '">'
 					+ '<b title="' + name + '">' + fitStringToWidth(name, 180, 'slideOut') + '</b>'
@@ -1753,9 +1756,13 @@ function addPrincipal(entity, principal, permissions) {
 	});
 }
 
-function formatValueInputField(key, obj, isPassword, isReadOnly) {
+function formatValueInputField(key, obj, isPassword, isReadOnly, isMultiline) {
 	if (obj === null) {
-		return '<input name="' + key + '" type="' + (isPassword ? 'password' : 'text') + '" ' + (isReadOnly ? 'readonly class="readonly"' : '') + ' value="">';
+		if (isMultiline) {
+			return '<textarea name="' + key + '" type="' + (isPassword ? 'password' : 'text') + '" ' + (isReadOnly ? 'readonly class="readonly"' : '') + ' value=""></textarea>';
+		} else {
+			return '<input name="' + key + '" type="' + (isPassword ? 'password' : 'text') + '" ' + (isReadOnly ? 'readonly class="readonly"' : '') + ' value="">';
+		}
 	} else if (obj.constructor === Object) {
 		var node = obj;
 		var displayName = _Crud.displayName(node);
@@ -1764,12 +1771,16 @@ function formatValueInputField(key, obj, isPassword, isReadOnly) {
 	} else if (obj.constructor === Array) {
 		var out = '';
 		$(obj).each(function(i, v) {
-			out += formatValueInputField(key, v, isPassword, isReadOnly) + '<br>';
+			out += formatValueInputField(key, v, isPassword, isReadOnly, isMultiline) + '<br>';
 		});
 		return out;
 		//return '<textarea name="' + key + '"' + (isReadOnly?'readonly class="readonly"':'') + '>' + out + '</textarea>';
 	} else {
-		return '<input name="' + key + '" type="' + (isPassword ? 'password' : 'text') + '" ' + (isReadOnly ? 'readonly class="readonly"' : '') + 'value="' + escapeForHtmlAttributes(obj) + '">';
+		if (isMultiline) {
+			return '<textarea name="' + key + '" type="' + (isPassword ? 'password' : 'text') + '" ' + (isReadOnly ? 'readonly class="readonly"' : '') + '>' + escapeForHtmlAttributes(obj) + '</textarea>';
+		} else {
+			return '<input name="' + key + '" type="' + (isPassword ? 'password' : 'text') + '" ' + (isReadOnly ? 'readonly class="readonly"' : '') + 'value="' + escapeForHtmlAttributes(obj) + '">';
+		}
 	}
 }
 

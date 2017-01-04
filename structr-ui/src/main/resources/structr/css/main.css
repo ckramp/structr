@@ -1113,11 +1113,6 @@ button i {
     vertical-align: middle;
 }
 
-#json_input {
-    width: 1000px;
-    height: 500px;
-}
-
 .dialog {
     display: none;
     font-size: 11pt;
@@ -1860,7 +1855,7 @@ button.add_property {
     opacity: .7;
 }
 
-#admin-tools, #sync-schema, #show-snapshots, #schema-display-options {
+#admin-tools, #sync-schema, #show-snapshots, #schema-display-options, #reset-schema-layout {
     margin: 0 0 4px 12px;
 }
 
@@ -2249,16 +2244,24 @@ table.push {
     background: #fff ! important;
     font-family: Arial, Helvetica, Sans-serif ! important;
     font-size: 9pt;
-    position: relative;
+	padding: 0;
 }
 
-#usersAndGroups {
-    overflow: auto;
+#usersAndGroups #users, #usersAndGroups #groups {
+	padding: 1em;
+	overflow-y: auto;
+	height: calc(100% - 2em);
+}
+
+#resourceAccess #resourceAccesses {
+	padding: 1em;
+	height: calc(100% - 2em);
 }
 
 #resourceAccessesTable {
     display: block;
     overflow: auto;
+	height: calc(100% - 5em);
     border-collapse: collapse;
     background: #fff;
     margin: 6px 0;
@@ -2310,9 +2313,11 @@ table.push {
 
 #securityTabs {
     margin: 12px 24px 12px 12px;
+	width: calc(100vw - 36px);
+	min-width: calc(804px + 4em);
+	height: calc(100vh - 120px);
     border: none;
     background: none;
-    padding: 0;
     font-family: Arial, Helvetica, Sans-serif;
 }
 
@@ -2349,7 +2354,6 @@ li.ui-state-active a:visited {
 #securityTabsMenu {
     border: none;
     background: none;
-    padding: 0;
 }
 
 th.center {
@@ -2800,8 +2804,6 @@ td#cascading-options, td#propagation-options {
 
 #file-tree, #contents-tree, #crawler-tree {
     padding-top: 8px;
-    width: 400px;
-    min-width: 400px;
     overflow: auto;
     vertical-align: top;
     background-color: #fff;
@@ -2812,7 +2814,7 @@ td#cascading-options, td#propagation-options {
 #folder-contents-container, #contents-contents-container, #crawler-list-container {
     display: table-cell;
     vertical-align: top;
-    padding: 12px;
+    padding: 12px 12px 12px 8px;
 }
 
 #folder-contents-container select, #contents-contents-container select, #crawler-list-container select {
@@ -2828,7 +2830,7 @@ td#cascading-options, td#propagation-options {
     margin-top: 12px;
     overflow: auto;
     font-size: 9pt;
-    position: relative;
+    position: absolute;
 }
 
 #folder-contents h1, #contents-contents h1, #crawler-list h1 {
@@ -3571,4 +3573,25 @@ input#element-class {
 	left: 0;
 	z-index: 10;
 	opacity: .9;
+}
+
+/**
+ * Column resizer
+ */
+.column-resizer {
+	z-index: 2;
+	width: 6px;
+	height: 100%;
+	background-color: transparent;
+	position: absolute;
+	top: 60;
+	left: 222px;
+	cursor: ew-resize;
+	border: 1px solid transparent;
+}
+
+#files-main .column-resizer,
+#crawler-main .column-resizer,
+#contents-main .column-resizer {
+	left: 300px;
 }

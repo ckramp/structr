@@ -36,12 +36,35 @@ public class CypherRelationshipIndex extends AbstractCypherIndex<Relationship> {
 		super(db, queryCacheSize);
 	}
 
+
 	@Override
-	public String getQueryPrefix(final QueryContext context,final String typeLabel) {
+	public String getQueryPrefix(final QueryContext context, final String typeLabel) {
 
 		if (typeLabel != null) {
 
 			return getSecurityPrefix(context)+"MATCH ()-[n: " + typeLabel + "]-()";
+
+		} else {
+
+			return getSecurityPrefix(context)+"MATCH ()-[n]-()";
+
+		}
+
+	}
+
+	@Override
+	public String getQueryPrefix(final QueryContext context, final String typeLabel, final String sourceTypeLabel, final String targetTypeLabel) {
+
+		if (typeLabel != null) {
+
+			if (sourceTypeLabel != null && targetTypeLabel != null) {
+
+				return getSecurityPrefix(context)+"MATCH (:" + sourceTypeLabel + ")-[n: " + typeLabel + "]->(: " + targetTypeLabel + ")";
+
+			} else {
+
+				return getSecurityPrefix(context)+"MATCH ()-[n: " + typeLabel + "]-()";
+			}
 
 		} else {
 

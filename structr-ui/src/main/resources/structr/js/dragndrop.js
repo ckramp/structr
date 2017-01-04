@@ -255,7 +255,7 @@ var _Dragndrop = {
 			return _Dragndrop.widgetDropped(source, target, pageId);
 		}
 
-		if (source && source.isImage) {
+		if (lastMenuEntry === 'pages' && source && source.isImage) {
 			return _Dragndrop.imageDropped(source, target, pageId);
 		}
 
@@ -427,7 +427,7 @@ var _Dragndrop = {
 						});
 
 						e.stopPropagation();
-						Command.appendWidget(widgetSource, target.id, pageId, widgetsUrl, attrs);
+						Command.appendWidget(widgetSource, target.id, pageId, _Widgets.url, attrs);
 
 						dialogCancelButton.click();
 						return false;
@@ -438,7 +438,7 @@ var _Dragndrop = {
 			} else {
 
 				// If no matches, directly append widget
-				Command.appendWidget(widgetSource, target.id, pageId, widgetsUrl);
+				Command.appendWidget(widgetSource, target.id, pageId, _Widgets.url);
 
 			}
 

@@ -17,11 +17,11 @@
  * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
 var main, contentsMain, contentTree, contentsContents;
-var win = $(window);
 var selectedElements = [];
 var currentContentContainer;
 var containerPageSize = 10000, containerPage = 1;
 var currentContentContainerKey = 'structrCurrentContentContainer_' + port;
+var contentsResizerLeftKey = 'structrContentsResizerLeftKey_' + port;
 
 $(document).ready(function() {
 
@@ -62,25 +62,31 @@ var _Contents = {
 	},
 	resize: function() {
 
-		var windowWidth = win.width();
-		var windowHeight = win.height();
+		var windowHeight = $(window).height();
 		var headerOffsetHeight = 100;
 
 		if (contentTree) {
 			contentTree.css({
-				width: Math.max(180, Math.min(windowWidth / 3, 360)) + 'px',
 				height: windowHeight - headerOffsetHeight + 'px'
 			});
 		}
 
 		if (contentsContents) {
 			contentsContents.css({
-				width: windowWidth - 400 - 64 + 'px',
 				height: windowHeight - headerOffsetHeight - 55 + 'px'
 			});
 		}
+
+		_Contents.moveResizer();
 		Structr.resize();
 
+	},
+	moveResizer: function(left) {
+		left = left || LSWrapper.getItem(contentsResizerLeftKey) || 300;
+		$('.column-resizer', contentsMain).css({ left: left });
+
+		$('#contents-tree').css({width: left - 14 + 'px'});
+		$('#contents-contents').css({left: left + 8 + 'px', width: $(window).width() - left - 58 + 'px'});
 	},
 	onload: function() {
 
@@ -88,18 +94,19 @@ var _Contents = {
 
 		Structr.updateMainHelpLink('https://support.structr.com/knowledge-graph');
 
-		main.append('<div id="contents-main"><div class="fit-to-height" id="content-tree-container"><div id="contents-tree"></div></div><div class="fit-to-height" id="contents-contents-container"><div id="contents-contents"></div></div>');
+		main.append('<div id="contents-main"><div class="column-resizer"></div><div class="fit-to-height" id="content-tree-container"><div id="contents-tree"></div></div><div class="fit-to-height" id="contents-contents-container"><div id="contents-contents"></div></div>');
 		contentsMain = $('#contents-main');
 
 		contentTree = $('#contents-tree');
 		contentsContents = $('#contents-contents');
 
+		_Contents.moveResizer();
+		Structr.initVerticalSlider($('.column-resizer', contentsMain), contentsResizerLeftKey, 204, _Contents.moveResizer);
+
 		$('#contents-contents-container').prepend(' <select id="add-content-item"><option value="">Add Content Item</option></select>');
 
 		var itemTypesSelector = $('#add-content-item', main);
-		// query: function(type, pageSize, page, sort, order, properties, callback, exact, view) {
 		Command.query('SchemaNode', 1000, 1, 'name', 'asc', { extendsClass: 'org.structr.web.entity.ContentItem' }, function(schemaNodes) {
-			//console.log(schemaNodes);
 			schemaNodes.forEach(function(schemaNode) {
 				var type = schemaNode.name;
 				itemTypesSelector.append('<option value="' + type + '">' + type + '</option>');
@@ -124,7 +131,6 @@ var _Contents = {
 
 		var containerTypesSelector = $('#add-content-container', main);
 		Command.query('SchemaNode', 1000, 1, 'name', 'asc', { extendsClass: 'org.structr.web.entity.ContentContainer' }, function(schemaNodes) {
-			//console.log(schemaNodes);
 			schemaNodes.forEach(function(schemaNode) {
 				var type = schemaNode.name;
 				containerTypesSelector.append('<option value="' + type + '">' + type + '</option>');
@@ -171,8 +177,7 @@ var _Contents = {
 
 		_TreeHelper.initTree(contentTree, _Contents.treeInitFunction, 'structr-ui-contents');
 
-		win.off('resize');
-		win.resize(function() {
+		$(window).off('resize').resize(function() {
 			_Contents.resize();
 		});
 
@@ -604,13 +609,6 @@ var _Contents = {
 								checkbox.on('change', function() {
 									var checked = checkbox.prop('checked');
 									_Contents.checkValueHasChanged(oldVal, checked || false, [dialogSaveButton, saveAndClose]);
-//									_Entities.setProperty(entity.id, key, checked, false, function(newVal) {
-//										if (val !== newVal) {
-//											blinkGreen(div);
-//										}
-//										checkbox.prop('checked', newVal);
-//										val = newVal;
-//									});
 								});
 							} else {
 								checkbox.prop('disabled', 'disabled');
@@ -715,8 +713,7 @@ var _Contents = {
 											_Entities.setProperty(entity.id, key, null, false, function(newVal) {
 												if (!newVal) {
 													blinkGreen(relatedNodes);
-													dialogMsg.html('<div class="infoBox success">Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".</div>');
-													$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
+													Structr.showAndHideInfoBoxMessage('Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".', 'success', 2000, 1000);
 													nodeEl.remove();
 												} else {
 													blinkRed(relatedNodes);
@@ -744,8 +741,7 @@ var _Contents = {
 													var nodeEl = $('._' + node.id, relatedNodes);
 													nodeEl.remove();
 													blinkGreen(relatedNodes);
-													dialogMsg.html('<div class="infoBox success">Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".</div>');
-													$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
+													Structr.showAndHideInfoBoxMessage('Related node "' + (node.name || node.id) + '" was removed from property "' + key + '".', 'success', 2000, 1000);
 												});
 												return false;
 											});

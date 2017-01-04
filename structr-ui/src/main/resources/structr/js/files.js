@@ -17,11 +17,10 @@
  * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
 var main, filesMain, fileTree, folderContents;
-var images, folders, drop;
+var drop;
 var fileList;
 var chunkSize = 1024 * 64;
 var sizeLimit = 1024 * 1024 * 1024;
-var win = $(window);
 var selectedElements = [];
 var activeFileId, fileContents = {};
 var currentWorkingDir;
@@ -31,6 +30,7 @@ var viewMode;
 var timeout, attempts = 0, maxRetry = 10;
 var displayingFavorites = false;
 var filesLastOpenFolderKey = 'structrFilesLastOpenFolder_' + port;
+var filesResizerLeftKey = 'structrFilesResizerLeftKey_' + port;
 
 $(document).ready(function() {
 	Structr.registerModule('files', _Files);
@@ -73,24 +73,22 @@ var _Files = {
 	},
 	resize: function() {
 
-		var windowWidth = win.width();
-		var windowHeight = win.height();
+		var windowHeight = $(window).height();
 		var headerOffsetHeight = 100;
 
 		if (fileTree) {
 			fileTree.css({
-				width: Math.max(180, Math.min(windowWidth / 3, 360)) + 'px',
 				height: windowHeight - headerOffsetHeight + 'px'
 			});
 		}
 
 		if (folderContents) {
 			folderContents.css({
-				width: windowWidth - 400 - 64 + 'px',
 				height: windowHeight - headerOffsetHeight - 55 + 'px'
 			});
 		}
 
+		_Files.moveResizer();
 		Structr.resize();
 
 		var nameColumnWidth;
@@ -129,17 +127,27 @@ var _Files = {
 		}
 
 	},
+	moveResizer: function(left) {
+		left = left || LSWrapper.getItem(filesResizerLeftKey) || 300;
+		$('.column-resizer', filesMain).css({ left: left });
+
+		$('#file-tree').css({width: left - 14 + 'px'});
+		$('#folder-contents').css({left: left + 8 + 'px', width: $(window).width() - left - 58 + 'px'});
+	},
 	onload: function() {
 
 		_Files.init();
 
 		Structr.updateMainHelpLink('https://support.structr.com/article/49');
 
-		main.append('<div id="files-main"><div class="fit-to-height" id="file-tree-container"><div id="file-tree"></div></div><div class="fit-to-height" id="folder-contents-container"><div id="folder-contents"></div></div>');
+		main.append('<div id="files-main"><div class="column-resizer"></div><div class="fit-to-height" id="file-tree-container"><div id="file-tree"></div></div><div class="fit-to-height" id="folder-contents-container"><div id="folder-contents"></div></div>');
 		filesMain = $('#files-main');
 
 		fileTree = $('#file-tree');
 		folderContents = $('#folder-contents');
+
+		_Files.moveResizer();
+		Structr.initVerticalSlider($('.column-resizer', filesMain), filesResizerLeftKey, 204, _Files.moveResizer);
 
 		$('#folder-contents-container').prepend(
 				'<button class="add_folder_icon button"><img title="Add Folder" alt="Add Folder" src="' + _Icons.add_folder_icon + '"> Add Folder</button>'
@@ -172,9 +180,7 @@ var _Files = {
 			Structr.pullDialog('File,Folder');
 		});
 
-		$('.duplicate_finder', main).on('click', function(e) {
-			_DuplicateFinder.openDuplicateFinderDialog();
-		});
+		$('.duplicate_finder', main).on('click', _DuplicateFinder.openDuplicateFinderDialog);
 
 		$('.add_folder_icon', main).on('click', function(e) {
 			Command.create({ type: 'Folder', parentId: currentWorkingDir ? currentWorkingDir.id : null }, function(f) {
@@ -231,8 +237,7 @@ var _Files = {
 
 		_Files.activateUpload();
 
-		win.off('resize');
-		win.resize(function() {
+		$(window).off('resize').resize(function() {
 			_Files.resize();
 		});
 
@@ -360,7 +365,6 @@ var _Files = {
 
 				} else {
 					$(filesToUpload).each(function(i, file) {
-						//file.parent = { id: currentWorkingDir };
 						file.parentId = currentWorkingDir ? currentWorkingDir.id : null;
 						file.hasParent = true; // Setting hasParent = true forces the backend to upload the file to the root dir even if parentId is null
 						Command.createFile(file, function(f) {
@@ -636,6 +640,13 @@ var _Files = {
 		listSw.on('click', layoutSwitchFunction);
 		tilesSw.on('click', layoutSwitchFunction);
 
+	},
+	fileOrFolderCreationNotification: function (newFileOrFolder) {
+		if (currentWorkingDir === null && newFileOrFolder.parent === null) {
+			_Files.appendFileOrFolder(newFileOrFolder);
+		} else if (currentWorkingDir !== null && newFileOrFolder.parent && currentWorkingDir.id === newFileOrFolder.parent.id) {
+			_Files.appendFileOrFolder(newFileOrFolder);
+		}
 	},
 	appendFileOrFolder: function(d) {
 
@@ -1110,7 +1121,7 @@ var _Files = {
 		var minifyIcon = $('.minify_file_icon', parent);
 
 		if (!(minifyIcon && minifyIcon.length)) {
-			parent.append('<img title="Open minification dialog" class="minify_file_icon button" src="' + _Files.getMinificationIcon(file) + '" />');
+			parent.append('<img title="Open minification dialog" class="minify_file_icon button" src="' + _Icons.getMinificationIcon(file) + '" />');
 		}
 
 		$(parent.children('.minify_file_icon')).on('click', function(e) {
@@ -1378,16 +1389,5 @@ var _Files = {
 	isMinificationTarget: function(file) {
 		var minifyTypes = [ 'MinifiedCssFile', 'MinifiedJavaScriptFile' ];
 		return isIn(file.type, minifyTypes);
-	},
-	getMinificationIcon: function(file) {
-		switch(file.type) {
-			case 'MinifiedCssFile':
-				return _Icons.minification_dialog_css_icon;
-			case 'MinifiedJavaScriptFile':
-				return _Icons.minification_dialog_js_icon;
-			default:
-				// unknow minification type - show error icon
-				return _Icons.error_icon;
-		}
 	}
 };

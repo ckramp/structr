@@ -46,11 +46,9 @@ function without(s, array) {
 	});
 
 	return res;
-
 }
 
 function isIn(s, array) {
-	//console.log('is', s, 'in', array, '?', (array.indexOf(s) !== -1));
 	return (s && array && array.indexOf(s) !== -1);
 }
 
@@ -151,27 +149,15 @@ function cleanText(input) {
 	if (typeof input !== 'string') {
 		return input;
 	}
-	//console.log(input);
 	var output = input
 			.replace(/<div><br><\/div>/ig, '\n')
 			.replace(/<div><\/div>/g, '\n')
 			.replace(/<br(\s*)\/*>/ig, '\n')
 			.replace(/(<([^>]+)>)/ig, "")
-			.replace(/\u00A0/ig, String.fromCharCode(32))
-	;
+			.replace(/\u00A0/ig, String.fromCharCode(32));
 
-	//console.log(output);
 	return output;
 
-//    _Logger.consoleLog(input);
-//    var output = '';
-//    $(input).each(function(i, line) {
-//        var cleaned = $(line).text();
-//        console.log('>'+cleaned+'<');
-//        output += cleaned + '\n';
-//    });
-//    console.log(output);
-//    return output;
 }
 
 /**
@@ -228,43 +214,6 @@ String.prototype.toUnderscore = function() {
 	});
 };
 
-/**
- * Gratefully taken from https://gist.github.com/24261/7fdb113f1e26111bd78c0c6fe515f6c0bf418af5
- *
- * The method trims the given string 'str' to fit nicely within a box of 'len' px width
- * without line break.
- */
-//function fitStringToSize(str,len) {
-//    var result = str;
-//    var span = document.createElement("span");
-//    span.style.visibility = 'hidden';
-//    span.style.padding = '0px';
-//    document.body.appendChild(span);
-//
-//    // on first run, check if string fits into the length already.
-//    span.innerHTML = result;
-//    if (span.offsetWidth > len) {
-//        var posStart = 0, posMid, posEnd = str.length;
-//        while (true) {
-//            // Calculate the middle position
-//            posMid = posStart + Math.ceil((posEnd - posStart) / 2);
-//            // Break the loop if this is the last round
-//            if (posMid===posEnd || posMid===posStart) break;
-//
-//            span.innerHTML = str.substring(0,posMid) + '&hellip;';
-//
-//            // Test if the width at the middle position is
-//            // too wide (set new end) or too narrow (set new start).
-//            if ( span.offsetWidth > len ) posEnd = posMid; else posStart=posMid;
-//        }
-//
-//        //Escape < and >, eliminate trailing space and a widow character if one is present.
-//        result = str.substring(0,posStart).replace("<","&lt;").replace(">","&gt;").replace(/(\s.)?\s*$/,'') + '&hellip;';
-//    }
-//    document.body.removeChild(span);
-//    return result;
-//}
-
 function fitStringToWidth(str, width, className) {
 	// str    A string where html-entities are allowed but no tags.
 	// width  The maximum allowed width in pixels
@@ -278,8 +227,9 @@ function fitStringToWidth(str, width, className) {
 	//Create a span element that will be used to get the width
 	var span = document.createElement("span");
 	//Allow a classname to be set to get the right font-size.
-	if (className)
+	if (className) {
 		span.className = className;
+	}
 	span.style.display = 'inline';
 	span.style.visibility = 'hidden';
 	span.style.padding = '0px';
@@ -324,15 +274,15 @@ function formatValue(value) {
 	if (value.constructor === Object) {
 
 		var out = '';
-		$(Object.keys(value)).each(function(i, k) {
-			out += k + ': ' + formatValue(value[k]) + '\n';
+		Object.keys(value).forEach(function(key) {
+			out += key + ': ' + formatValue(value[key]) + '\n';
 		});
 		return out;
 
 	} else if (value.constructor === Array) {
 		var out = '';
-		$(value).each(function(i, v) {
-			out += JSON.stringify(v);
+		value.forEach(function(val) {
+			out += JSON.stringify(val);
 		});
 		return out;
 
@@ -349,12 +299,10 @@ function getTypeFromResourceSignature(signature) {
 }
 
 function blinkGreen(element) {
-
 	blink(element, '#6db813', '#81ce25');
 }
 
 function blinkRed(element) {
-
 	blink(element, '#a00', '#faa');
 }
 
@@ -875,16 +823,28 @@ var _Console = new (function () {
 
 });
 
-var CacheWithCallbacks = function () {
+/**
+ * A cache for async GET requests which allows ensures that certain requests are only made once - if used correctly.<br>
+ * The cache has one argument - the fetch function - which handles fetching a single object.<br>
+ * Upon successfully loading the object, it must be added to the cache via the `addObject` method.<br>
+ * It is possible to attach callbacks to the ID we ware waiting for. After the object is loaded<br>
+ * these callbacks will be executed and any further callbacks will be executed directly.
+ *
+ * @param {function} fetchFunction The function which handles fetching a single object - must take the ID as single parameter
+ * @returns {AsyncObjectCache}*
+ */
+var AsyncObjectCache = function (fetchFunction) {
 
-	// private properties
 	var _cache = {};
 
-	// public api
 	/**
-	 * This methods registers a callback for an object ID.
-	 * returns true if that ID has not seen before => needs to be fetched from server
-	 * returns false if that ID or value is already present and thus the object does not need to be fetched
+	 * This methods registers a callback for an object ID.<br>
+	 * If the ID has not been requested before, the fetch function is executed.<br>
+	 * If the ID has been requested before, the callback is added to the callbacks list.<br>
+	 * If the object associated with the ID is present in the cache, the callback is executed directly.
+	 *
+	 * @param {string} id The ID to fetch
+	 * @param {function} callback The callback to execute with the fetched object. Needs to take the object as single paramter.
 	 */
 	this.registerCallbackForId = function (id, callback) {
 
@@ -894,59 +854,68 @@ var CacheWithCallbacks = function () {
 				callbacks: [callback]
 			};
 
-			return true;
+			fetchFunction(id);
 
 		} else if (_cache[id].value === undefined) {
 
 			_cache[id].callbacks.push(callback);
 
-			return false;
-
 		} else {
 
-			if (typeof callback === "function") {
-				callback(_cache[id].value);
-			}
-
-			return false;
+			_runSingleCallback(id, callback);
 
 		}
 
 	};
 
+	/**
+	 * This method adds a fetched object to the cache.<br>
+	 * Callbacks associated with that object will be executed afterwards.
+	 *
+	 * @param {object} obj The object to store in the cache
+	 */
 	this.addObject = function(obj) {
+
 		if (_cache[obj.id] === undefined) {
 
+			// no registered callbacks - simply set the cache object
 			_cache[obj.id] = {
 				value: obj
 			};
 
 		} else if (_cache[obj.id].value === undefined) {
 
+			// set the cache object and run all registered callbacks
 			_cache[obj.id].value = obj;
-			_runRegisteredCacheCallbacks(obj.id);
+			_runRegisteredCallbacks(obj.id);
 
 		}
+
 	};
 
 	this.clear = function () {
 		_cache = {};
 	};
 
-	// private methods
-	function _runRegisteredCacheCallbacks (id) {
+	function _runRegisteredCallbacks (id) {
 
 		if (_cache[id] !== undefined && _cache[id].callbacks) {
 
 			_cache[id].callbacks.forEach(function(callback) {
-				if (typeof callback === "function") {
-					callback(_cache[id].value);
-				}
+				_runSingleCallback(id, callback);
 			});
 
 			_cache[id].callbacks = [];
 		}
 
-	}
+	};
+
+	function _runSingleCallback(id, callback) {
+
+		if (typeof callback === "function") {
+			callback(_cache[id].value);
+		}
+
+	};
 
 };

@@ -35,11 +35,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.http.Header;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.structr.api.DatabaseService;
 import org.structr.api.Predicate;
-import org.structr.api.graph.Direction;
-import org.structr.api.graph.Relationship;
-import org.structr.api.graph.RelationshipType;
 import org.structr.api.search.SortType;
 import org.structr.common.CaseHelper;
 import org.structr.common.Filter;
@@ -54,6 +50,8 @@ import org.structr.core.app.App;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
 import org.structr.core.entity.LinkedTreeNode;
+import org.structr.core.entity.Principal;
+import org.structr.core.entity.Security;
 import org.structr.core.function.Functions;
 import org.structr.core.graph.ModificationQueue;
 import org.structr.core.graph.NodeInterface;
@@ -93,6 +91,7 @@ import org.structr.web.entity.relation.PageLink;
 import org.structr.web.entity.relation.RenderNode;
 import org.structr.web.entity.relation.Sync;
 import org.structr.web.function.AddHeaderFunction;
+import org.structr.web.function.CopyFileContentsFunction;
 import org.structr.web.function.EscapeHtmlFunction;
 import org.structr.web.function.FromJsonFunction;
 import org.structr.web.function.FromXmlFunction;
@@ -161,40 +160,41 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 		listSources.add(new CypherGraphDataSource());
 		listSources.add(new XPathGraphDataSource());
 	}
-	public static final Property<String> dataKey = new StringProperty("dataKey").indexed();
-	public static final Property<String> cypherQuery = new StringProperty("cypherQuery");
-	public static final Property<String> xpathQuery = new StringProperty("xpathQuery");
-	public static final Property<String> restQuery = new StringProperty("restQuery");
-	public static final Property<String> functionQuery = new StringProperty("functionQuery");
-	public static final Property<Boolean> renderDetails = new BooleanProperty("renderDetails");
+	public static final Property<String> dataKey                      = new StringProperty("dataKey").indexed();
+	public static final Property<String> cypherQuery                  = new StringProperty("cypherQuery");
+	public static final Property<String> xpathQuery                   = new StringProperty("xpathQuery");
+	public static final Property<String> restQuery                    = new StringProperty("restQuery");
+	public static final Property<String> functionQuery                = new StringProperty("functionQuery");
+	public static final Property<Boolean> renderDetails               = new BooleanProperty("renderDetails");
 
-	public static final Property<List<DOMNode>> syncedNodes = new EndNodes("syncedNodes", Sync.class, new PropertyNotion(id));
-	public static final Property<DOMNode> sharedComponent = new StartNode("sharedComponent", Sync.class, new PropertyNotion(id));
+	public static final Property<List<DOMNode>> syncedNodes           = new EndNodes("syncedNodes", Sync.class, new PropertyNotion(id));
+	public static final Property<DOMNode> sharedComponent             = new StartNode("sharedComponent", Sync.class, new PropertyNotion(id));
+	public static final Property<String> sharedComponentConfiguration = new StringProperty("sharedComponentConfiguration").format("multi-line");
 
-	public static final Property<Boolean> hideOnIndex = new BooleanProperty("hideOnIndex").indexed();
-	public static final Property<Boolean> hideOnDetail = new BooleanProperty("hideOnDetail").indexed();
-	public static final Property<String> showForLocales = new StringProperty("showForLocales").indexed();
-	public static final Property<String> hideForLocales = new StringProperty("hideForLocales").indexed();
-	public static final Property<String> showConditions = new StringProperty("showConditions").indexed();
-	public static final Property<String> hideConditions = new StringProperty("hideConditions").indexed();
+	public static final Property<Boolean> hideOnIndex                 = new BooleanProperty("hideOnIndex").indexed();
+	public static final Property<Boolean> hideOnDetail                = new BooleanProperty("hideOnDetail").indexed();
+	public static final Property<String> showForLocales               = new StringProperty("showForLocales").indexed();
+	public static final Property<String> hideForLocales               = new StringProperty("hideForLocales").indexed();
+	public static final Property<String> showConditions               = new StringProperty("showConditions").indexed();
+	public static final Property<String> hideConditions               = new StringProperty("hideConditions").indexed();
 
-	public static final Property<DOMNode> parent = new StartNode<>("parent", DOMChildren.class);
-	public static final Property<String> parentId = new EntityIdProperty("parentId", parent);
-	public static final Property<List<DOMNode>> children = new EndNodes<>("children", DOMChildren.class);
-	public static final Property<List<String>> childrenIds = new CollectionIdProperty("childrenIds", children);
-	public static final Property<DOMNode> previousSibling = new StartNode<>("previousSibling", DOMSiblings.class);
-	public static final Property<DOMNode> nextSibling = new EndNode<>("nextSibling", DOMSiblings.class);
-	public static final Property<String> nextSiblingId = new EntityIdProperty("nextSiblingId", nextSibling);
+	public static final Property<DOMNode> parent                      = new StartNode<>("parent", DOMChildren.class);
+	public static final Property<String> parentId                     = new EntityIdProperty("parentId", parent);
+	public static final Property<List<DOMNode>> children              = new EndNodes<>("children", DOMChildren.class);
+	public static final Property<List<String>> childrenIds            = new CollectionIdProperty("childrenIds", children);
+	public static final Property<DOMNode> previousSibling             = new StartNode<>("previousSibling", DOMSiblings.class);
+	public static final Property<DOMNode> nextSibling                 = new EndNode<>("nextSibling", DOMSiblings.class);
+	public static final Property<String> nextSiblingId                = new EntityIdProperty("nextSiblingId", nextSibling);
 
-	public static final Property<Page> ownerDocument = new EndNode<>("ownerDocument", PageLink.class);
-	public static final Property<String> pageId = new EntityIdProperty("pageId", ownerDocument);
-	public static final Property<Boolean> isDOMNode = new ConstantBooleanProperty("isDOMNode", true);
+	public static final Property<Page> ownerDocument                  = new EndNode<>("ownerDocument", PageLink.class);
+	public static final Property<String> pageId                       = new EntityIdProperty("pageId", ownerDocument);
+	public static final Property<Boolean> isDOMNode                   = new ConstantBooleanProperty("isDOMNode", true);
 
-	public static final Property<String> dataStructrIdProperty = new StringProperty("data-structr-id");
-	public static final Property<String> dataHashProperty = new StringProperty("data-structr-hash");
+	public static final Property<String> dataStructrIdProperty        = new StringProperty("data-structr-id");
+	public static final Property<String> dataHashProperty             = new StringProperty("data-structr-hash");
 
-	public static final Property<List<String>> mostUsedTagsProperty = new MostUsedTagsProperty("mostUsedTags");
-	public static final Property<Integer> domSortPosition = new IntProperty("domSortPosition");
+	public static final Property<List<String>> mostUsedTagsProperty   = new MostUsedTagsProperty("mostUsedTags");
+	public static final Property<Integer> domSortPosition             = new IntProperty("domSortPosition");
 
 	static {
 
@@ -223,6 +223,8 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 		Functions.functions.put("set_session_attribute", new SetSessionAttributeFunction());
 		Functions.functions.put("get_session_attribute", new GetSessionAttributeFunction());
 		Functions.functions.put("remove_session_attribute", new RemoveSessionAttributeFunction());
+		Functions.functions.put("copy_file_contents", new CopyFileContentsFunction());
+
 	}
 
 	public static final Property[] rawProps = new Property[] {
@@ -613,6 +615,7 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 
 		getVisibilityInstructions(instructions);
 		getLinkableInstructions(instructions);
+		getSecurityInstructions(instructions);
 
 		if (isContentNode) {
 
@@ -644,6 +647,20 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 		} else {
 
 			return false;
+		}
+	}
+
+	protected void renderSharedComponentConfiguration(final AsyncBuffer out, final EditMode editMode) {
+
+		if (EditMode.DEPLOYMENT.equals(editMode)) {
+
+			final String configuration = getProperty(DOMNode.sharedComponentConfiguration);
+			if (StringUtils.isNotBlank(configuration)) {
+
+				out.append(" data-structr-meta-shared-component-configuration=\"");
+				out.append(escapeForHtmlAttributes(configuration));
+				out.append("\"");
+			}
 		}
 	}
 
@@ -777,6 +794,32 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 		}
 	}
 
+	private void getSecurityInstructions(final Set<String> instructions) {
+
+		final Principal _owner = getOwnerNode();
+		if (_owner != null) {
+
+			instructions.add("@structr:owner(" + _owner.getProperty(AbstractNode.name) + ")");
+		}
+
+		for (final Security security : getSecurityRelationships()) {
+
+			if (security != null) {
+
+				final Principal grantee = security.getSourceNode();
+				final Set<String> perms = security.getPermissions();
+				final StringBuilder shortPerms = new StringBuilder();
+
+				// first character only
+				for (final String perm : perms) {
+					shortPerms.append(perm.substring(0, 1));
+				}
+
+				instructions.add("@structr:grant(" + grantee.getProperty(AbstractNode.name) + "," + shortPerms.toString() + ")");
+			}
+		}
+	}
+
 	protected void renderCustomAttributes(final AsyncBuffer out, final SecurityContext securityContext, final RenderContext renderContext) throws FrameworkException {
 
 		dbNode = this.getNode();
@@ -892,48 +935,6 @@ public abstract class DOMNode extends LinkedTreeNode<DOMChildren, DOMSiblings, D
 			}
 			renderContext.clearDataObject(dataKey);
 		}
-	}
-
-	protected void migrateSyncRels() {
-
-		try {
-
-			final DatabaseService db     = StructrApp.getInstance().getDatabaseService();
-			org.structr.api.graph.Node n = getNode();
-
-			Iterable<Relationship> incomingSyncRels = n.getRelationships(Direction.INCOMING, db.forName(RelationshipType.class, "SYNC"));
-			Iterable<Relationship> outgoingSyncRels = n.getRelationships(Direction.OUTGOING, db.forName(RelationshipType.class, "SYNC"));
-
-			if (getOwnerDocument() instanceof ShadowDocument) {
-
-				// We are a shared component and must not have any incoming SYNC rels
-				for (Relationship r : incomingSyncRels) {
-					r.delete();
-				}
-
-			} else {
-
-				for (Relationship r : outgoingSyncRels) {
-					r.delete();
-				}
-
-				for (Relationship r : incomingSyncRels) {
-
-					DOMElement possibleSharedComp = StructrApp.getInstance().get(DOMElement.class, (String)r.getStartNode().getProperty("id"));
-
-					if (!(possibleSharedComp.getOwnerDocument() instanceof ShadowDocument)) {
-
-						r.delete();
-
-					}
-
-				}
-			}
-
-		} catch (FrameworkException ex) {
-			LoggerFactory.getLogger(DOMElement.class.getName()).error("", ex);
-		}
-
 	}
 
 	protected List<GraphObject> checkListSources(final SecurityContext securityContext, final RenderContext renderContext) {

@@ -70,7 +70,6 @@ var StructrModel = {
 			return StructrModel.createFromData(data, refId, append);
 		}
 
-
 	},
 	createFromData: function(data, refId, append) {
 
@@ -159,10 +158,7 @@ var StructrModel = {
 			obj.content = obj.content.substring(0, 40);
 		}
 
-		var refNode = refId ? Structr.node(refId) : undefined;
-
-		// Display in page (before refNode, if given)
-		obj.append(refNode);
+		obj.append(refId);
 
 	},
 	/**
@@ -205,6 +201,13 @@ var StructrModel = {
 		var node = Structr.node(id);
 		if (node) {
 			node.remove();
+		}
+
+		// Since users/groups are not displayed as '#id_'-elements anymore, Structr.node() does not find (all of) them.
+		// therefor we let the object itself handle its removal in this case.
+		var obj = StructrModel.obj(id);
+		if (obj) {
+			obj.remove();
 		}
 
 		if (lastMenuEntry === 'pages') {
@@ -282,13 +285,15 @@ var StructrModel = {
 		var w = width || 200;
 
 		var obj = StructrModel.obj(id);
-		if (!obj)
+		if (!obj) {
 			return;
+		}
 
 		var element = Structr.node(id);
 
-		if (!element)
+		if (!element) {
 			return;
+		}
 
 		var inputElement = $('td.' + key + '_ input', element);
 		_Logger.log(_LogType.MODEL, inputElement);
@@ -375,8 +380,9 @@ var StructrModel = {
 				graphBrowser.updateNode(id, obj, ['name', 'tag', 'id', 'type'], {label: 'name', nodeType: 'type'});
 			}
 
-			if (!element)
+			if (!element) {
 				return;
+			}
 
 			_Logger.log(_LogType.MODEL, obj, id, element);
 
@@ -497,26 +503,31 @@ var StructrModel = {
 		Command.setProperties(id, data);
 	},
 
-	callCallback: function(callback, entity, resultSize) {
+	callCallback: function(callback, entity, resultSize, errorOccurred) {
 		if (callback) {
 			_Logger.log(_LogType.MODEL, 'Calling callback', callback, 'on entity', entity, resultSize);
 			var callbackFunction = StructrModel.callbacks[callback];
 			if (callback && callbackFunction) {
 				_Logger.log(_LogType.MODEL, callback, callbackFunction.toString());
-				StructrModel.callbacks[callback](entity, resultSize);
+				StructrModel.callbacks[callback](entity, resultSize, errorOccurred);
 			}
 			StructrModel.clearCallback(callback);
 		}
 	},
 
-	clearCallback : function(callback) {
+	clearCallback: function(callback) {
 		if (callback && StructrModel.callbacks[callback]) {
 			delete StructrModel.callbacks[callback];
 			callback = undefined;
 			delete callback;
 		}
-	}
+	},
 
+	copyDataToObject: function (data, target) {
+		$.each(Object.keys(data), function(i, key) {
+			target[key] = data[key];
+		});
+	}
 };
 
 
@@ -525,10 +536,7 @@ var StructrModel = {
  **************************************/
 
 function StructrFolder(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrFolder.prototype.save = function() {
@@ -541,40 +549,44 @@ StructrFolder.prototype.setProperty = function(key, value, recursive, callback) 
 
 StructrFolder.prototype.remove = function() {
 
-	var folder = this;
-	if (folder.parent) {
-		var parentFolder = StructrModel.obj(folder.parent.id);
-		var parentFolderEl = Structr.node(parentFolder.id);
-	}
+	_Files.refreshTree();
 
-	if (!parentFolderEl)
-		return;
-
-	parentFolder.folders = removeFromArray(parentFolder.folders, folder);
-
-	if (!parentFolder.files.length && !parentFolder.folders.length) {
-		_Entities.removeExpandIcon(parentFolderEl);
-	}
-
-	var folderEl = Structr.node(folder.id);
-	if (!folderEl)
-		return;
-
-	_Entities.resetMouseOverState(folderEl);
-
-	folderEl.children('.delete_icon').replaceWith('<img title="Delete folder ' + folder.id + '" '
-			+ 'alt="Delete folder ' + folder.id + '" class="delete_icon button" src="' + _Icons.delete_icon + '">');
-
-	folderEl.children('.delete_icon').on('click', function(e) {
-		e.stopPropagation();
-		_Entities.deleteNode(this, folder, true);
-	});
-
-	folders.append(folderEl);
+//	var folder = this;
+//	if (folder.parent) {
+//		var parentFolder = StructrModel.obj(folder.parent.id);
+//		var parentFolderEl = Structr.node(parentFolder.id);
+//	}
+//
+//	if (!parentFolderEl)
+//		return;
+//
+//	parentFolder.folders = removeFromArray(parentFolder.folders, folder);
+//
+//	if (!parentFolder.files.length && !parentFolder.folders.length) {
+//		_Entities.removeExpandIcon(parentFolderEl);
+//	}
+//
+//	var folderEl = Structr.node(folder.id);
+//	if (!folderEl)
+//		return;
+//
+//	_Entities.resetMouseOverState(folderEl);
+//
+//	folderEl.children('.delete_icon').replaceWith('<img title="Delete folder ' + folder.id + '" '
+//			+ 'alt="Delete folder ' + folder.id + '" class="delete_icon button" src="' + _Icons.delete_icon + '">');
+//
+//	folderEl.children('.delete_icon').on('click', function(e) {
+//		e.stopPropagation();
+//		_Entities.deleteNode(this, folder, true);
+//	});
 
 };
 
-StructrFolder.prototype.append = function(refNode) {
+StructrFolder.prototype.append = function() {
+
+	_Files.fileOrFolderCreationNotification(this);
+	_Files.refreshTree();
+
 };
 
 StructrFolder.prototype.exists = function() {
@@ -587,10 +599,7 @@ StructrFolder.prototype.exists = function() {
  **************************************/
 
 function StructrFile(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrFile.prototype.save = function() {
@@ -602,27 +611,27 @@ StructrFile.prototype.setProperty = function(key, value, recursive, callback) {
 };
 
 StructrFile.prototype.remove = function() {
-	var file = this;
-
-	if (file.parent) {
-
-		var parentFolder = StructrModel.obj(file.parent.id);
-		var parentFolderEl = Structr.node(parentFolder.id);
-
-		parentFolder.files = removeFromArray(parentFolder.files, file);
-		if (!parentFolder.files.length && !parentFolder.folders.length) {
-			_Entities.removeExpandIcon(parentFolderEl);
-		}
-
-		file.parent = undefined;
-	}
-
-	var fileEl = Structr.node(file.id);
-	if (!fileEl) {
-		return;
-	} else {
-		fileEl.remove();
-	}
+//	var file = this;
+//
+//	if (file.parent) {
+//
+//		var parentFolder = StructrModel.obj(file.parent.id);
+//		var parentFolderEl = Structr.node(parentFolder.id);
+//
+//		parentFolder.files = removeFromArray(parentFolder.files, file);
+//		if (!parentFolder.files.length && !parentFolder.folders.length) {
+//			_Entities.removeExpandIcon(parentFolderEl);
+//		}
+//
+//		file.parent = undefined;
+//	}
+//
+//	var fileEl = Structr.node(file.id);
+//	if (!fileEl) {
+//		return;
+//	} else {
+//		fileEl.remove();
+//	}
 };
 
 StructrFile.prototype.append = function() {
@@ -636,6 +645,8 @@ StructrFile.prototype.append = function() {
 			parentFolder.files.push(file);
 		}
 	}
+
+	_Files.fileOrFolderCreationNotification(this);
 };
 
 
@@ -644,10 +655,7 @@ StructrFile.prototype.append = function() {
  **************************************/
 
 function StructrImage(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrImage.prototype.save = function() {
@@ -659,39 +667,36 @@ StructrImage.prototype.setProperty = function(key, value, recursive, callback) {
 };
 
 StructrImage.prototype.remove = function() {
-	var file = this;
-
-	if (file.parent) {
-
-		var parentFolder = StructrModel.obj(file.parent.id);
-		var parentFolderEl = Structr.node(parentFolder.id);
-
-		parentFolder.files = removeFromArray(parentFolder.files, file);
-		if (!parentFolder.files.length && !parentFolder.folders.length) {
-			_Entities.removeExpandIcon(parentFolderEl);
-			Structr.enableButton(parentFolderEl.children('.delete_icon')[0]);
-		}
-
-		file.parent = undefined;
-	}
-
-	var fileEl = Structr.node(file.id);
-	if (fileEl) {
-		fileEl.remove();
-	}
+//	var file = this;
+//
+//	if (file.parent) {
+//
+//		var parentFolder = StructrModel.obj(file.parent.id);
+//		var parentFolderEl = Structr.node(parentFolder.id);
+//
+//		parentFolder.files = removeFromArray(parentFolder.files, file);
+//		if (!parentFolder.files.length && !parentFolder.folders.length) {
+//			_Entities.removeExpandIcon(parentFolderEl);
+//			Structr.enableButton(parentFolderEl.children('.delete_icon')[0]);
+//		}
+//
+//		file.parent = undefined;
+//	}
+//
+//	var fileEl = Structr.node(file.id);
+//	if (fileEl) {
+//		fileEl.remove();
+//	}
 };
 
-StructrImage.prototype.append = function(refNode) {
+StructrImage.prototype.append = function() {
 	var image = this;
 	if (image.parent) {
 		var parentFolder = StructrModel.obj(image.parent.id);
 		if (parentFolder) parentFolder.files.push(image);
 	}
-	if (images && images.length) {
-		StructrModel.expand(_Images.appendImageElement(this, parentFolder), this);
-	} else {
-		_Files.appendFileOrFolder(this);
-	}
+
+	_Files.fileOrFolderCreationNotification(this);
 };
 
 
@@ -700,10 +705,7 @@ StructrImage.prototype.append = function(refNode) {
  **************************************/
 
 function StructrUser(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrUser.prototype.save = function() {
@@ -714,42 +716,27 @@ StructrUser.prototype.setProperty = function(key, value, recursive, callback) {
 	Command.setProperty(this.id, key, value, false, callback);
 };
 
-StructrUser.prototype.remove = function() {
-	var user = this;
-
-	var group = user.groups[0];
-	var groupEl = Structr.node(group.id);
-
-	user.groups = removeFromArray(user.groups, group);
-
-	group.members = removeFromArray(group.members, user);
-	if (!group.members.length) {
-		_Entities.removeExpandIcon(groupEl);
-		if (groupEl && groupEl.length) {
-			Structr.enableButton(groupEl.children('.delete_icon')[0]);
+StructrUser.prototype.remove = function(groupId) {
+	if (groupId) {
+		var group = StructrModel.obj(groupId);
+		if (group) {
+			group.removeUser(this.id);
+		}
+	} else {
+		var userEl = Structr.node(this.id, '.userid_');
+		if (userEl && userEl.length) {
+			userEl.remove();
 		}
 	}
-
-	var userEl = Structr.node(user.id);
-	if (!userEl) {
-		return;
-	} else {
-		userEl.remove();
-	}
-
-	_Security.appendUserElement(this);
 };
 
-StructrUser.prototype.append = function() {
-	var user = this;
-
-	if (user.groups && user.groups.length) {
-		var group = StructrModel.obj(user.groups[0]);
-		if (group && group.members) {
-			group.members.push(user.id);
-		}
+StructrUser.prototype.append = function(groupId) {
+	if (groupId) {
+		_UsersAndGroups.appendUserToGroup(this, StructrModel.obj(groupId), Structr.node(groupId, '.groupid_'));
+	} else {
+		_UsersAndGroups.appendUserToUserList(this);
 	}
-	StructrModel.expand(_Security.appendUserElement(this, group), this);
+
 };
 
 /**************************************
@@ -757,10 +744,7 @@ StructrUser.prototype.append = function() {
  **************************************/
 
 function StructrGroup(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrGroup.prototype.save = function() {
@@ -771,8 +755,31 @@ StructrGroup.prototype.setProperty = function(key, value, recursive, callback) {
 	Command.setProperty(this.id, key, value, recursive, callback);
 };
 
-StructrGroup.prototype.append = function(refNode) {
-	StructrModel.expand(_Security.appendGroupElement(this, refNode), this);
+StructrGroup.prototype.append = function(refId) {
+	var refNode = refId ? Structr.node(refId) : undefined;
+	StructrModel.expand(_UsersAndGroups.appendGroupElement(this, refNode), this);
+};
+
+StructrGroup.prototype.remove = function() {
+	var groupEl = Structr.node(this.id, '.groupid_');
+	if (groupEl && groupEl.length) {
+		groupEl.remove();
+	}
+};
+
+StructrGroup.prototype.removeUser = function(userId) {
+	this.members = this.members.filter(function (user) {
+		return user.id !== userId;
+	});
+
+	var groupEl = Structr.node(this.id, '.groupid_');
+	if (groupEl && groupEl.length) {
+		$('.userid_' + userId, groupEl).remove();
+
+		if (this.members.length === 0) {
+			_Entities.removeExpandIcon(groupEl);
+		}
+	}
 };
 
 /**************************************
@@ -780,10 +787,7 @@ StructrGroup.prototype.append = function(refNode) {
  **************************************/
 
 function StructrResourceAccess(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrResourceAccess.prototype.save = function() {
@@ -794,8 +798,8 @@ StructrResourceAccess.prototype.setProperty = function(key, value, recursive, ca
 	Command.setProperty(this.id, key, value, recursive, callback);
 };
 
-StructrResourceAccess.prototype.append = function(refNode) {
-	StructrModel.expand(_Security.appendResourceAccessElement(this, refNode), this);
+StructrResourceAccess.prototype.append = function() {
+	_ResourceAccessGrants.appendResourceAccessElement(this);
 };
 
 /**************************************
@@ -803,10 +807,7 @@ StructrResourceAccess.prototype.append = function(refNode) {
  **************************************/
 
 function StructrPage(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrPage.prototype.setProperty = function(key, value, recursive, callback) {
@@ -822,10 +823,7 @@ StructrPage.prototype.append = function() {
  **************************************/
 
 function StructrWidget(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrWidget.prototype.setProperty = function(key, value, recursive, callback) {
@@ -841,10 +839,7 @@ StructrWidget.prototype.append = function() {
  **************************************/
 
 function StructrElement(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrElement.prototype.appendChild = function(el) {
@@ -887,7 +882,8 @@ StructrElement.prototype.remove = function() {
 	_Pages.reloadPreviews();
 };
 
-StructrElement.prototype.append = function(refNode) {
+StructrElement.prototype.append = function(refId) {
+	var refNode = refId ? Structr.node(refId) : undefined;
 	StructrModel.expand(_Pages.appendElementElement(this, refNode), this);
 };
 
@@ -929,10 +925,7 @@ StructrElement.prototype.isActiveNode = function() {
  **************************************/
 
 function StructrContent(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrContent.prototype.appendChild = function(el) {
@@ -973,7 +966,7 @@ StructrContent.prototype.remove = function() {
 	_Pages.reloadPreviews();
 };
 
-StructrContent.prototype.append = function(refNode) {
+StructrContent.prototype.append = function(refId) {
 
 	var id = this.id;
 	var parentId;
@@ -984,6 +977,7 @@ StructrContent.prototype.append = function(refNode) {
 		parent = Structr.node(parentId);
 	}
 
+	var refNode = refId ? Structr.node(refId) : undefined;
 	var div = _Elements.appendContentElement(this, refNode);
 	if (!div) {
 		return;
@@ -1012,7 +1006,6 @@ StructrContent.prototype.append = function(refNode) {
 };
 
 StructrContent.prototype.exists = function() {
-
 	return Structr.node(this.id);
 };
 
@@ -1025,10 +1018,7 @@ StructrContent.prototype.isActiveNode = function() {
  **************************************/
 
 function StructrSearchResult(data) {
-	var self = this;
-	$.each(Object.keys(data), function(i, key) {
-		self[key] = data[key];
-	});
+	StructrModel.copyDataToObject(data, this);
 }
 
 StructrSearchResult.prototype.append = function() {
@@ -1041,8 +1031,6 @@ StructrSearchResult.prototype.append = function() {
 		_Graph.drawNode(this);
 	}
 };
-
-
 
 function removeFromArray(array, obj) {
 	var newArray = [];

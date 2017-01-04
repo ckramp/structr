@@ -25,6 +25,7 @@ var crudPagerDataKey = 'structrCrudPagerData_' + port + '_';
 var crudTypeKey = 'structrCrudType_' + port;
 var crudHiddenColumnsKey = 'structrCrudHiddenColumns_' + port;
 var crudRecentTypesKey = 'structrCrudRecentTypes_' + port;
+var crudResizerLeftKey = 'structrCrudResizerLeft_' + port;
 
 if (browser) {
 
@@ -54,7 +55,13 @@ if (browser) {
 		});
 
 		$(document).on('click', '#crudTypesFilterToggle', function (e) {
+			e.preventDefault();
 			$('#crudTypeFilterSettings').toggleClass('hidden');
+			return false;
+		});
+
+		$(document).on('click', '#crudTypeFilterSettings', function(e) {
+			e.stopPropagation();
 		});
 
 		$(document).on('change', '#crudTypeFilterSettings input', function(e) {
@@ -62,8 +69,10 @@ if (browser) {
 			LSWrapper.setItem(_Crud.displayTypeConfigKey, _Crud.getTypeVisibilityConfig());
 		});
 
-		$(document).on('click', '#crudTypeFilterSettings .close-button', function (e) {
-			_Crud.hideTypeVisibilityConfig();
+		$(document).on('click', function() {
+			if ($('#crudTypeFilterSettings').is(':visible')) {
+				_Crud.hideTypeVisibilityConfig();
+			}
 		});
 
 	});
@@ -76,7 +85,24 @@ var _Crud = {
 	displayTypeConfigKey: 'structrCrudDisplayTypes_' + port,
 	types: {},
 	keys: {},
-	crudCache: new CacheWithCallbacks(),
+	crudCache: new AsyncObjectCache(function (id) {
+		$.ajax({
+			url: rootUrl + id + '/ui',
+			type: 'GET',
+			dataType: 'json',
+			contentType: 'application/json; charset=utf-8;',
+			headers: {
+				Accept: 'application/json; charset=utf-8; properties=id,name,type,contentType,isThumbnail,isImage,tnSmall,tnMid'
+			},
+			success: function(data) {
+				if (!data)
+					return;
+
+				var node = data.result;
+				_Crud.crudCache.addObject(node);
+			}
+		});
+	}),
 	getProperties: function(type, callback) {
 
 		var url = rootUrl + '_schema/' + type + '/ui';
@@ -136,25 +162,37 @@ var _Crud = {
 	order: {},
 	page: {},
 	pageSize: {},
+	moveResizer: function(left) {
+		left = left || LSWrapper.getItem(crudResizerLeftKey) || 210;
+		$('.column-resizer', main).css({ left: left });
+
+		$('#crud-types').css({width: left - 12 + 'px'});
+		$('#crud-recent-types').css({width: left - 12 + 'px'});
+		$('#crud-right').css({left: left - 222 + 'px', width: $(window).width() - left - 58 + 'px'});
+	},
 	init: function() {
 
 		main.append('<div class="searchBox"><input class="search" name="search" placeholder="Search"><img class="clearSearchIcon" src="' + _Icons.grey_cross_icon + '"></div>');
-		main.append('<div id="crud-main"><div id="crud-left">'
+		main.append('<div id="crud-main"><div class="column-resizer"></div><div id="crud-left">'
 				+ '<div id="crud-types" class="resourceBox"><h2>All Types</h2><img src="' + _Icons.wrench_icon + '" id="crudTypesFilterToggle" title="Auto-filter types"><div id="crudTypeFilterSettings" class="hidden"></div><input placeholder="Filter types..." id="crudTypesSearch"><ul id="crud-types-list"></ul></div>'
 				+ '<div id="crud-recent-types" class="resourceBox"><h2>Recent</h2><ul id="crud-recent-types-list"></ul></div></div>'
 				+ '<div id="crud-right" class="resourceBox full-height-box"></div></div>');
 
+		_Crud.moveResizer();
+		Structr.initVerticalSlider($('.column-resizer', main), crudResizerLeftKey, 204, _Crud.moveResizer);
+
 		$('#crudTypeFilterSettings').append(
-			'<div><input type="checkbox" id="crudTypeToggleCustom"><label for="crudTypeToggleCustom"> Show Custom Types</label></div>' +
-			'<div><input type="checkbox" id="crudTypeToggleCore"><label for="crudTypeToggleCore"> Show Core Types</label></div>' +
-			'<div><input type="checkbox" id="crudTypeToggleHtml"><label for="crudTypeToggleHtml"> Show HTML Types</label></div>' +
-			'<div><input type="checkbox" id="crudTypeToggleUi"><label for="crudTypeToggleUi"> Show UI Types</label></div>' +
-			'<div><input type="checkbox" id="crudTypeToggleLog"><label for="crudTypeToggleLog"> Show Log Types</label></div>' +
-			'<div><input type="checkbox" id="crudTypeToggleOther"><label for="crudTypeToggleOther"> Show Other Types</label></div>' +
-			'<div><button class="close-button">Close</button></div>'
+			'<div><input type="checkbox" id="crudTypeToggleRels"><label for="crudTypeToggleRels"> Relationship Types</label></div>' +
+			'<div><input type="checkbox" id="crudTypeToggleCustom"><label for="crudTypeToggleCustom"> Custom Types</label></div>' +
+			'<div><input type="checkbox" id="crudTypeToggleCore"><label for="crudTypeToggleCore"> Core Types</label></div>' +
+			'<div><input type="checkbox" id="crudTypeToggleHtml"><label for="crudTypeToggleHtml"> HTML Types</label></div>' +
+			'<div><input type="checkbox" id="crudTypeToggleUi"><label for="crudTypeToggleUi"> UI Types</label></div>' +
+			'<div><input type="checkbox" id="crudTypeToggleLog"><label for="crudTypeToggleLog"> Log Types</label></div>' +
+			'<div><input type="checkbox" id="crudTypeToggleOther"><label for="crudTypeToggleOther"> Other Types</label></div>'
 		);
 
 		var savedTypeVisibility = LSWrapper.getItem(_Crud.displayTypeConfigKey) || {};
+		$('#crudTypeToggleRels').prop('checked', (savedTypeVisibility.rels === undefined ? true : savedTypeVisibility.rels));
 		$('#crudTypeToggleCustom').prop('checked', (savedTypeVisibility.custom === undefined ? true : savedTypeVisibility.custom));
 		$('#crudTypeToggleCore').prop('checked', (savedTypeVisibility.core === undefined ? true : savedTypeVisibility.core));
 		$('#crudTypeToggleHtml').prop('checked', (savedTypeVisibility.html === undefined ? true : savedTypeVisibility.html));
@@ -278,14 +316,15 @@ var _Crud = {
 
 			var type = _Crud.types[typeName];
 
-			var isDynamicType = type.className.startsWith('org.structr.dynamic');
-			var isCoreType    = type.className.startsWith('org.structr.core.entity');
-			var isHtmlType    = type.className.startsWith('org.structr.web.entity.html');
-			var isUiType      = type.className.startsWith('org.structr.web.entity') && !type.className.startsWith('org.structr.web.entity.html');
-			var isLogType     = type.className.startsWith('org.structr.rest.logging.entity');
-			var isOtherType   = !(isDynamicType || isCoreType || isHtmlType || isUiType || isLogType);
+			var isRelType     = type.isRel;
+			var isDynamicType = !isRelType && type.className.startsWith('org.structr.dynamic');
+			var isCoreType    = !isRelType && type.className.startsWith('org.structr.core.entity');
+			var isHtmlType    = !isRelType && type.className.startsWith('org.structr.web.entity.html');
+			var isUiType      = !isRelType && type.className.startsWith('org.structr.web.entity') && !type.className.startsWith('org.structr.web.entity.html');
+			var isLogType     = !isRelType && type.className.startsWith('org.structr.rest.logging.entity');
+			var isOtherType   = !(isRelType || isDynamicType || isCoreType || isHtmlType || isUiType || isLogType);
 
-			var hide =	(!typeVisibility.custom && isDynamicType) || (!typeVisibility.core && isCoreType) || (!typeVisibility.html && isHtmlType) ||
+			var hide =	(!typeVisibility.rels && isRelType) || (!typeVisibility.custom && isDynamicType) || (!typeVisibility.core && isCoreType) || (!typeVisibility.html && isHtmlType) ||
 						(!typeVisibility.ui && isUiType) || (!typeVisibility.log && isLogType) || (!typeVisibility.other && isOtherType);
 
 			if (!hide) {
@@ -294,7 +333,19 @@ var _Crud = {
 		});
 
 		_Crud.highlightCurrentType(_Crud.type);
+		_Crud.filterTypes($('#crudTypesSearch').val().toLowerCase());
 		_Crud.resize();
+	},
+	loadingMessageTimeout: undefined,
+	showLoadingMessageAfterDelay: function (type, delay) {
+
+		clearTimeout(_Crud.loadingMessageTimeout);
+
+		_Crud.loadingMessageTimeout = setTimeout(function() {
+			var crudRight = $('#crud-right');
+			crudRight.append('<div class="crud-loading"><div class="crud-centered"><img src="' + _Icons.ajax_loader_1 + '"> Loading <b>' + type + '</b> - please stand by</div></div>');
+		}, delay);
+
 	},
 	typeSelected: function (selectedType) {
 
@@ -302,9 +353,14 @@ var _Crud = {
 		_Crud.updateRecentTypeList(selectedType);
 		_Crud.highlightCurrentType(selectedType);
 
+		var crudRight = $('#crud-right');
+		fastRemoveAllChildren(crudRight[0]);
+		_Crud.showLoadingMessageAfterDelay(selectedType, 500);
+
 		_Crud.getProperties(selectedType, function(type, properties) {
 
-			var crudRight = $('#crud-right');
+			clearTimeout(_Crud.loadingMessageTimeout);
+
 			fastRemoveAllChildren(crudRight[0]);
 
 			crudRight.data('url', '/' + type);
@@ -351,6 +407,7 @@ var _Crud = {
 	getTypeVisibilityConfig: function () {
 
 		return {
+			rels:   $('#crudTypeToggleRels').prop('checked'),
 			custom: $('#crudTypeToggleCustom').prop('checked'),
 			core:   $('#crudTypeToggleCore').prop('checked'),
 			html:   $('#crudTypeToggleHtml').prop('checked'),
@@ -747,9 +804,11 @@ var _Crud = {
 					var resultCount = data.result_count;
 					var pageCount   = data.page_count;
 
-					data.result.forEach(function(preloadedNode) {
-						_Crud.getAndAppendNode(type, id, key, preloadedNode.id, el, preloadedNode);
-					});
+					if (data.result && data.result.length > 0) {
+						data.result.forEach(function(preloadedNode) {
+							_Crud.getAndAppendNode(type, id, key, preloadedNode.id, el, preloadedNode);
+						});
+					}
 
 					var page = 1;
 
@@ -1177,8 +1236,7 @@ var _Crud = {
                         errorText += ' ' + error.detail;
                     }
 
-					dialogMsg.html('<div class="infoBox error">' + errorText + '</div>');
-					$('.infoBox', dialogMsg).delay(2000).fadeOut(1000);
+					Structr.showAndHideInfoBoxMessage(errorText, 'error', 2000, 1000);
 
 					input.css({
 						backgroundColor: '#fee',
@@ -1432,7 +1490,7 @@ var _Crud = {
 		var fields = $('input', form);
 		form.attr('data-id', node.id);
 		$.each(fields, function(f, field) {
-			var value = formatValue(node[field.name], field.name, node.type, node.id);
+			var value = formatValue(node[field.name]);
 			$('input[name="' + field.name + '"]').val(value);
 		});
 	},
@@ -1512,11 +1570,15 @@ var _Crud = {
 		}
 		var id = item['id'];
 		var tbody = $('#crud-right table tbody');
-		tbody.append('<tr class="_' + id + '"></tr>');
+		var row = _Crud.row(id);
+		if ( !(row && row.length) ) {
+			tbody.append('<tr class="_' + id + '"></tr>');
+		}
 		_Crud.populateRow(id, item, type, properties);
 	},
 	populateRow: function(id, item, type, properties) {
 		var row = _Crud.row(id);
+		row.empty();
 		if (properties) {
 			_Crud.filterKeys(type, Object.keys(properties)).forEach(function(key) {
 				row.append('<td class="___' + key + '"></td>');
@@ -1774,8 +1836,6 @@ var _Crud = {
 
 		var nodeHandler = function (node) {
 
-			_Crud.crudCache.addObject(node);
-
 			var displayName = _Crud.displayName(node);
 
 			cell.append('<div title="' + displayName + '" id="_' + node.id + '" class="node ' + (node.isImage ? 'image ' : '') + ' ' + node.id + '_">' + fitStringToWidth(displayName, 80));
@@ -1836,32 +1896,9 @@ var _Crud = {
 		};
 
 		if (preloadedNode) {
-
 			nodeHandler(preloadedNode);
-
 		} else {
-
-			if (_Crud.crudCache.registerCallbackForId(id, nodeHandler)) {
-
-				$.ajax({
-					url: rootUrl + id + '/ui',
-					type: 'GET',
-					dataType: 'json',
-					contentType: 'application/json; charset=utf-8;',
-					headers: {
-						Accept: 'application/json; charset=utf-8; properties=id,name,type,contentType,isThumbnail,isImage,tnSmall,tnMid'
-					},
-					success: function(data) {
-						if (!data)
-							return;
-
-						var node = data.result;
-						_Crud.crudCache.addObject(node);
-					}
-				});
-
-			};
-
+			_Crud.crudCache.registerCallbackForId(id, nodeHandler);
 		}
 
 	},
@@ -2244,45 +2281,8 @@ var _Crud = {
 			$.blockUI.defaults.applyPlatformOpacityRules = false;
 			$.blockUI.defaults.css.cursor = 'default';
 
-
-			var w = $(window).width();
-			var h = $(window).height();
-
-			var ml = 0;
-			var mt = 24;
-
-			// Calculate dimensions of dialog
-			var dw = Math.min(900, w - ml);
-			var dh = Math.min(600, h - mt);
-			//            var dw = (w-24) + 'px';
-			//            var dh = (h-24) + 'px';
-
-			var l = parseInt((w - dw) / 2);
-			var t = parseInt((h - dh) / 2);
-
-			$.blockUI({
-				fadeIn: 25,
-				fadeOut: 25,
-				message: dialogBox,
-				css: {
-					border: 'none',
-					backgroundColor: 'transparent',
-					width: dw + 'px',
-					height: dh + 'px',
-					top: t + 'px',
-					left: l + 'px'
-				},
-				themedCSS: {
-					width: dw + 'px',
-					height: dh + 'px',
-					top: t + 'px',
-					left: l + 'px'
-				},
-				width: dw + 'px',
-				height: dh + 'px',
-				top: t + 'px',
-				left: l + 'px'
-			});
+			var dimensions = Structr.getDialogDimensions(0, 24);
+			Structr.blockUI(dimensions);
 
 		}
 	},
@@ -2290,41 +2290,29 @@ var _Crud = {
 
 		Structr.resize();
 
-		var w = $(window).width();
-		var h = $(window).height();
-
-		var ml = 0;
-		var mt = 24;
-
-		// Calculate dimensions of dialog
-		var dw = Math.min(900, w - ml);
-		var dh = Math.min(600, h - mt);
-
-		var l = parseInt((w - dw) / 2);
-		var t = parseInt((h - dh) / 2);
+		var dimensions = Structr.getDialogDimensions(0, 24);
 
 		if (dialogBox && dialogBox.is(':visible')) {
 
 			$('.blockPage').css({
-				width: dw + 'px',
-				height: dh + 'px',
-				top: t + 'px',
-				left: l + 'px'
+				width: dimensions.width + 'px',
+				height: dimensions.height + 'px',
+				top: dimensions.top + 'px',
+				left: dimensions.left + 'px'
+			});
+
+			$('#dialogBox .dialogTextWrapper').css({
+				width: (dimensions.width - 28) + 'px',
+				height: (dimensions.height - 106) + 'px'
 			});
 
 		}
 
-		var bw = (dw - 28) + 'px';
-		var bh = (dh - 106) + 'px';
-
-		$('#dialogBox .dialogTextWrapper').css({
-			width: bw,
-			height: bh
-		});
-
 		$('.searchResults').css({
-			height: h - 103 + 'px'
+			height: ($(window).height() - 103) + 'px'
 		});
+
+		_Crud.moveResizer();
 
 	},
 	error: function(text, confirmationRequired) {

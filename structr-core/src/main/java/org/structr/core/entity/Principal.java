@@ -21,21 +21,18 @@ package org.structr.core.entity;
 import java.util.List;
 import java.util.Set;
 import org.structr.common.AccessControllable;
+import org.structr.common.ValidationHelper;
+import org.structr.common.error.ErrorBuffer;
 import org.structr.core.entity.relationship.PrincipalOwnsNode;
 import org.structr.core.graph.NodeInterface;
 import org.structr.core.property.ArrayProperty;
 import org.structr.core.property.BooleanProperty;
 import org.structr.core.property.EndNodes;
+import org.structr.core.property.LowercaseStringProperty;
 import org.structr.core.property.PasswordProperty;
 import org.structr.core.property.Property;
 import org.structr.core.property.StringProperty;
 
-//~--- interfaces -------------------------------------------------------------
-/**
- *
- *
- *
- */
 public interface Principal extends NodeInterface, AccessControllable {
 
 	public static final String SUPERUSER_ID =                    "00000000000000000000000000000000";
@@ -45,11 +42,10 @@ public interface Principal extends NodeInterface, AccessControllable {
 	public static final Property<String[]> sessionIds            = new ArrayProperty("sessionIds", String.class).indexedWhenEmpty();
 	public static final Property<List<NodeInterface>> ownedNodes = new EndNodes<>("ownedNodes", PrincipalOwnsNode.class);
 	public static final Property<Boolean> blocked                = new BooleanProperty("blocked");
+	public static final Property<String> eMail                   = new LowercaseStringProperty("eMail").cmis().indexed();
 	public static final Property<String> password                = new PasswordProperty("password");
 	public static final Property<String> salt                    = new StringProperty("salt");
 	public static final Property<Boolean> isAdmin                = new BooleanProperty("isAdmin").indexed().readOnly();
-	public static final Property<String[]> allowed               = new ArrayProperty("allowed", String.class);
-	public static final Property<String[]> denied                = new ArrayProperty("denied", String.class);
 	public static final Property<String> locale                  = new StringProperty("locale");
 	public static final Property<String> publicKey               = new StringProperty("publicKey");
 	public static final Property<String[]> publicKeys            = new ArrayProperty("publicKeys", String.class);
@@ -71,4 +67,16 @@ public interface Principal extends NodeInterface, AccessControllable {
 
 	public Set<String> getAllowedPermissions();
 	public Set<String> getDeniedPermissions();
+
+	@Override
+	default public boolean isValid(final ErrorBuffer errorBuffer) {
+
+		boolean valid = true;
+
+		valid &= ValidationHelper.isValidStringNotBlank(this, name, errorBuffer);
+		valid &= ValidationHelper.isValidUniqueProperty(this, name, errorBuffer);
+		valid &= ValidationHelper.isValidUniqueProperty(this, eMail, errorBuffer);
+
+		return valid;
+	}
 }

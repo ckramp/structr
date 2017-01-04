@@ -46,7 +46,7 @@ import org.structr.api.search.TypeQuery;
 import org.structr.api.search.UuidQuery;
 import org.structr.api.util.FixedSizeCache;
 import org.structr.api.util.Iterables;
-import org.structr.bolt.*;
+import org.structr.bolt.BoltDatabaseService;
 import org.structr.bolt.index.converter.BooleanTypeConverter;
 import org.structr.bolt.index.converter.DateTypeConverter;
 import org.structr.bolt.index.converter.DoubleTypeConverter;
@@ -110,7 +110,9 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 	}
 
 	public abstract QueryResult<T> getResult(final CypherQuery query);
-	public abstract String getQueryPrefix(final QueryContext context,final String typeLabel);
+
+	public abstract String getQueryPrefix(final QueryContext context, final String typeLabel);
+	public abstract String getQueryPrefix(final QueryContext context, final String typeLabel, final String soabel, final String targetTypeLabel);
 
 	public String getQuerySuffix(final QueryContext context){
 
@@ -119,7 +121,7 @@ public abstract class AbstractCypherIndex<T extends PropertyContainer> implement
 
                 if(context.hasProperty("isAuthenticatedUser") && context.hasProperty("isAdmin")) {
 
-			isAdmin = context.getBooleanProperty("isAdmin");
+					isAdmin = context.getBooleanProperty("isAdmin");
 
                 }
 

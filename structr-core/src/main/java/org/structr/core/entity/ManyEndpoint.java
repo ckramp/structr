@@ -38,6 +38,7 @@ import org.structr.core.app.App;
 import org.structr.core.app.StructrApp;
 import org.structr.core.graph.NodeFactory;
 import org.structr.core.graph.NodeInterface;
+import org.structr.core.property.PropertyMap;
 
 /**
  *
@@ -55,10 +56,6 @@ public class ManyEndpoint<T extends NodeInterface> extends AbstractEndpoint impl
 
 	@Override
 	public Iterable<T> get(final SecurityContext securityContext, final NodeInterface node, final Predicate<GraphObject> predicate) {
-
-		/*
-		return Iterables.map(new NodeFactory<>(securityContext), node.getNode().getRelatedNodes(Direction.OUTGOING, relation, relation.getTargetType().getSimpleName()));
-		*/
 
 		final NodeFactory<T> nodeFactory  = new NodeFactory<>(securityContext);
 		final Iterable<Relationship> rels = getRawSource(securityContext, node.getNode(), predicate);
@@ -81,9 +78,11 @@ public class ManyEndpoint<T extends NodeInterface> extends AbstractEndpoint impl
 	@Override
 	public Object set(final SecurityContext securityContext, final NodeInterface sourceNode, final Iterable<T> collection) throws FrameworkException {
 
-		final App app            = StructrApp.getInstance(securityContext);
-		final Set<T> toBeDeleted = new LinkedHashSet<>(Iterables.toList(get(securityContext, sourceNode, null)));
-		final Set<T> toBeCreated = new LinkedHashSet<>();
+		final App app                = StructrApp.getInstance(securityContext);
+		final PropertyMap properties = new PropertyMap();
+		final T actualSourceNode     = (T)unwrap(securityContext, relation.getClass(), sourceNode, properties);
+		final Set<T> toBeDeleted     = new LinkedHashSet<>(Iterables.toList(get(securityContext, actualSourceNode, null)));
+		final Set<T> toBeCreated     = new LinkedHashSet<>();
 
 		if (collection != null) {
 			Iterables.addAll(toBeCreated, collection);
@@ -100,14 +99,14 @@ public class ManyEndpoint<T extends NodeInterface> extends AbstractEndpoint impl
 		// remove existing relationships
 		for (T targetNode : toBeDeleted) {
 
-			for (AbstractRelationship rel : sourceNode.getOutgoingRelationships()) {
+			for (AbstractRelationship rel : actualSourceNode.getOutgoingRelationships()) {
 
 				final String relTypeName    = rel.getRelType().name();
 				final String desiredRelType = relation.name();
 
-				if (sourceNode.equals(targetNode)) {
+				if (actualSourceNode.equals(targetNode)) {
 
-					logger.warn("Preventing deletion of self relationship {}-[{}]->{}. If you experience issue with this, please report to team@structr.com.", new Object[] { sourceNode, rel.getRelType(), targetNode } );
+					logger.warn("Preventing deletion of self relationship {}-[{}]->{}. If you experience issue with this, please report to team@structr.com.", new Object[] { actualSourceNode, rel.getRelType(), targetNode } );
 
 					// skip self relationships
 					continue;
@@ -125,14 +124,21 @@ public class ManyEndpoint<T extends NodeInterface> extends AbstractEndpoint impl
 		// create new relationships
 		for (T targetNode : toBeCreated) {
 
-			if (sourceNode != null && targetNode != null) {
+			if (actualSourceNode != null && targetNode != null) {
 
-				final String storageKey = sourceNode.getName() + relation.name() + targetNode.getName();
+				properties.clear();
 
-				relation.ensureCardinality(securityContext, sourceNode, targetNode);
+				final NodeInterface actualTargetNode = (NodeInterface)unwrap(securityContext, relation.getClass(), targetNode, properties);
 
-				final Relation newRelation = app.create(sourceNode, targetNode, relation.getClass(), getNotionProperties(securityContext, relation.getClass(), storageKey));
-				createdRelationships.add(newRelation);
+				relation.ensureCardinality(securityContext, actualSourceNode, actualTargetNode);
+
+				final PropertyMap notionProperties = getNotionProperties(securityContext, relation.getClass(), actualSourceNode.getName() + relation.name() + actualTargetNode.getName());
+				if (notionProperties != null) {
+
+					properties.putAll(notionProperties);
+				}
+
+				createdRelationships.add(app.create(actualSourceNode, actualTargetNode, relation.getClass(), properties));
 			}
 		}
 

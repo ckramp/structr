@@ -34,7 +34,9 @@ public class CypherQuery {
 	private final Map<String, Object> parameters = new HashMap<>();
 	private final List<String> typeLabels        = new LinkedList<>();
 	private final StringBuilder buffer           = new StringBuilder();
-        private QueryContext context                 = null;
+	private QueryContext context                 = null;
+	private String sourceTypeLabel               = null;
+	private String targetTypeLabel               = null;
 	private AbstractCypherIndex<?> index         = null;
 	private boolean sortDescending               = false;
 	private SortType sortType                    = null;
@@ -104,7 +106,8 @@ public class CypherQuery {
 		switch (typeCount) {
 			case 0:
 
-				buf.append(index.getQueryPrefix(this.context,null));
+
+				buf.append(index.getQueryPrefix(this.context, null, sourceTypeLabel, targetTypeLabel));
 
 				if (buffer.length() > 0) {
 					buf.append(" WHERE ");
@@ -116,7 +119,8 @@ public class CypherQuery {
 
 			case 1:
 
-				buf.append(index.getQueryPrefix(this.context,typeLabels.get(0)));
+				buf.append(index.getQueryPrefix(this.context, typeLabels.get(0), sourceTypeLabel, targetTypeLabel));
+
 
 				if (buffer.length() > 0) {
 					buf.append(" WHERE ");
@@ -131,7 +135,8 @@ public class CypherQuery {
 				// create UNION query
 				for (final Iterator<String> it = typeLabels.iterator(); it.hasNext();) {
 
-					buf.append(index.getQueryPrefix(this.context,it.next()));
+
+					buf.append(index.getQueryPrefix(this.context, it.next(), sourceTypeLabel, targetTypeLabel));
 
 					if (buffer.length() > 0) {
 						buf.append(" WHERE ");
@@ -190,7 +195,7 @@ public class CypherQuery {
                                 .append("LIMIT ").append(pageSize);
 
                         }
-                        
+
                 }
 
 		return buf.toString();
@@ -331,7 +336,7 @@ public class CypherQuery {
 		final String paramKey1 = "param" + count++;
 		final String paramKey2 = "param" + count++;
 
-		buffer.append("n.`");
+		buffer.append("(n.`");
 		buffer.append(key);
 		buffer.append("` ");
 		buffer.append(operator1);
@@ -345,7 +350,7 @@ public class CypherQuery {
 		buffer.append(operator2);
 		buffer.append(" {");
 		buffer.append(paramKey2);
-		buffer.append("}");
+		buffer.append("})");
 
 		parameters.put(paramKey1, value1);
 		parameters.put(paramKey2, value2);
@@ -356,5 +361,13 @@ public class CypherQuery {
 		this.sortDescending = sortDescending;
 		this.sortType       = sortType;
 		this.sortKey        = sortKey;
+	}
+
+	public void setSourceType(final String sourceTypeLabel) {
+		this.sourceTypeLabel = sourceTypeLabel;
+	}
+
+	public void setTargetType(final String targetTypeLabel) {
+		this.targetTypeLabel = targetTypeLabel;
 	}
 }

@@ -36,6 +36,13 @@ public class CypherNodeIndex extends AbstractCypherIndex<Node> {
 	}
 
 	@Override
+	public String getQueryPrefix(final QueryContext context, final String typeLabel, final String sourceTypeLabel, final String targetTypeLabel) {
+
+		return getQueryPrefix(context, typeLabel);
+
+	}
+
+	@Override
 	public String getQueryPrefix(final QueryContext context, final String typeLabel) {
 
 		if (typeLabel != null) {

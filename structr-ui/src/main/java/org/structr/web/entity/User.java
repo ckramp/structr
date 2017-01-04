@@ -22,7 +22,6 @@ import java.util.List;
 import org.structr.common.KeyAndClass;
 import org.structr.common.PropertyView;
 import org.structr.common.SecurityContext;
-import org.structr.common.ValidationHelper;
 import org.structr.common.error.ErrorBuffer;
 import org.structr.common.error.FrameworkException;
 import org.structr.core.Services;
@@ -37,7 +36,6 @@ import org.structr.core.property.BooleanProperty;
 import org.structr.core.property.ConstantBooleanProperty;
 import org.structr.core.property.EndNode;
 import org.structr.core.property.EndNodes;
-import org.structr.core.property.LowercaseStringProperty;
 import org.structr.core.property.Property;
 import org.structr.core.property.PropertyMap;
 import org.structr.core.property.StartNode;
@@ -51,14 +49,6 @@ import org.structr.web.entity.relation.UserWorkDir;
 import org.structr.web.property.ImageDataProperty;
 import org.structr.web.property.UiNotion;
 
-
-//~--- classes ----------------------------------------------------------------
-
-/**
- *
- *
- *
- */
 public class User extends AbstractUser {
 
 	public static final Property<String>         confirmationKey  = new StringProperty("confirmationKey").indexed();
@@ -70,7 +60,6 @@ public class User extends AbstractUser {
 	public static final Property<Folder>         workingDirectory = new EndNode<>("workingDirectory", UserWorkDir.class);
 	public static final Property<List<Group>>    groups           = new StartNodes<>("groups", Groups.class, new UiNotion());
 	public static final Property<Boolean>        isUser           = new ConstantBooleanProperty("isUser", true);
-	public static final Property<String>         eMail            = new LowercaseStringProperty("eMail").cmis().indexed();
 	public static final Property<String>         twitterName      = new StringProperty("twitterName").cmis().indexed();
 	public static final Property<String>         localStorage     = new StringProperty("localStorage");
 	public static final Property<List<FileBase>> favoriteFiles    = new EndNodes<>("favoriteFiles", UserFavoriteFile.class);
@@ -89,20 +78,6 @@ public class User extends AbstractUser {
 
 		// register this type as an overridden builtin type
 		SchemaService.registerBuiltinTypeOverride("User", User.class.getName());
-	}
-
-
-	@Override
-	public boolean isValid(ErrorBuffer errorBuffer) {
-
-		boolean valid = super.isValid(errorBuffer);
-
-		valid &= ValidationHelper.isValidStringNotBlank(this, name, errorBuffer);
-		valid &= ValidationHelper.isValidUniqueProperty(this, name, errorBuffer);
-		valid &= ValidationHelper.isValidUniqueProperty(this, eMail, errorBuffer);
-		//valid &= ValidationHelper.isValidStringMatchingRegex(this, eMail, "[A-Za-z0-9!#$%&'*+-/=?^_`{|}~]+@[A-Za-z0-9-]+(.[A-Za-z0-9-]+)*", errorBuffer);
-
-		return valid;
 	}
 
 	@Override

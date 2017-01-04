@@ -33,11 +33,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -48,7 +48,9 @@ import org.structr.common.error.FrameworkException;
 import org.structr.core.app.App;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.AbstractNode;
+import org.structr.core.entity.Principal;
 import org.structr.core.entity.ResourceAccess;
+import org.structr.core.entity.Security;
 import org.structr.core.graph.MaintenanceCommand;
 import org.structr.core.graph.NodeInterface;
 import org.structr.core.graph.NodeServiceCommand;
@@ -332,7 +334,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 			exportPages(pages, pagesConf);
 			exportComponents(components, componentsConf);
 			exportTemplates(templates, templatesConf);
-			exportSecurity(grants);
+			exportResourceAccessGrants(grants);
 			exportSchema(schemaJson);
 
 			// config import order is "users, grants, pages, components, templates"
@@ -345,7 +347,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 	private void exportFiles(final Path target, final Path configTarget) throws FrameworkException {
 
-		final Map<String, Object> config = new LinkedHashMap<>();
+		final Map<String, Object> config = new TreeMap<>();
 		final App app                    = StructrApp.getInstance();
 
 		try (final Tx tx = app.tx()) {
@@ -377,7 +379,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 	private void exportFilesAndFolders(final Path target, final Folder folder, final Map<String, Object> config) throws IOException {
 
-		final Map<String, Object> properties = new LinkedHashMap<>();
+		final Map<String, Object> properties = new TreeMap<>();
 		final String name                    = folder.getName();
 		final Path path                      = target.resolve(name);
 
@@ -406,7 +408,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 	private void exportFile(final Path target, final FileBase file, final Map<String, Object> config) throws IOException {
 
-		final Map<String, Object> properties = new LinkedHashMap<>();
+		final Map<String, Object> properties = new TreeMap<>();
 		final String name                    = file.getName();
 		final Path src                       = file.getFileOnDisk().toPath();
 		Path targetPath                      = target.resolve(name);
@@ -414,7 +416,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		int i                                = 0;
 
 		// modify file name if there are duplicates in the database
-		while (Files.exists(targetPath)) {
+		if (Files.exists(targetPath)) {
 
 			// compare checksum
 			final Long checksumOfExistingFile = FileHelper.getChecksum(targetPath.toFile());
@@ -422,14 +424,8 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 			if (checksumOfExistingFile.equals(checksumOfExportFile)) {
 
-
 				logger.info("Skipping export of file {}, no changes.", name);
 				doExport = false;
-				break;
-
-			} else {
-
-				targetPath = target.resolve(name + i++);
 			}
 		}
 
@@ -440,7 +436,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 				Files.copy(src, targetPath);
 
 			} catch (IOException ioex) {
-				// ignore this
+				logger.warn("Unable to write file {}: {}", targetPath.toString(), ioex.getMessage());
 			}
 		}
 
@@ -453,7 +449,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 	private void exportPages(final Path target, final Path configTarget) throws FrameworkException {
 
-		final Map<String, Object> pagesConfig = new LinkedHashMap<>();
+		final Map<String, Object> pagesConfig = new TreeMap<>();
 		final App app                         = StructrApp.getInstance();
 
 		try (final Tx tx = app.tx()) {
@@ -465,7 +461,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 					final String content = page.getContent(RenderContext.EditMode.DEPLOYMENT);
 					if (content != null) {
 
-						final Map<String, Object> properties = new LinkedHashMap<>();
+						final Map<String, Object> properties = new TreeMap<>();
 						final String name                    = page.getName();
 						final Path pageFile                  = target.resolve(name + ".html");
 						boolean doExport                     = true;
@@ -517,7 +513,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 	private void exportComponents(final Path target, final Path configTarget) throws FrameworkException {
 
-		final Map<String, Object> configuration = new LinkedHashMap<>();
+		final Map<String, Object> configuration = new TreeMap<>();
 		final App app                           = StructrApp.getInstance();
 
 		try (final Tx tx = app.tx()) {
@@ -535,7 +531,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 					if (inTrash || hasParent) {
 						continue;
 					}
-					
+
 					final String content = node.getContent(RenderContext.EditMode.DEPLOYMENT);
 					if (content != null) {
 
@@ -545,7 +541,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 							name = node.getUuid();
 						}
 
-						final Map<String, Object> properties = new LinkedHashMap<>();
+						final Map<String, Object> properties = new TreeMap<>();
 						final Path targetFile = target.resolve(name + ".html");
 
 						if (Files.exists(targetFile)) {
@@ -594,7 +590,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 	private void exportTemplates(final Path target, final Path configTarget) throws FrameworkException {
 
-		final Map<String, Object> configuration = new LinkedHashMap<>();
+		final Map<String, Object> configuration = new TreeMap<>();
 		final App app                           = StructrApp.getInstance();
 
 		try (final Tx tx = app.tx()) {
@@ -626,7 +622,7 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 
 	private void exportTemplateSource(final Path target, final DOMNode template, final Map<String, Object> configuration) throws FrameworkException {
 
-		final Map<String, Object> properties = new LinkedHashMap<>();
+		final Map<String, Object> properties = new TreeMap<>();
 		boolean doExport                     = true;
 
 		final String content = template.getProperty(Template.content);
@@ -672,16 +668,16 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 		}
 	}
 
-	private void exportSecurity(final Path target) throws FrameworkException {
+	private void exportResourceAccessGrants(final Path target) throws FrameworkException {
 
 		final List<Map<String, Object>> grants = new LinkedList<>();
 		final App app                          = StructrApp.getInstance();
 
 		try (final Tx tx = app.tx()) {
 
-			for (final ResourceAccess res : app.nodeQuery(ResourceAccess.class).getAsList()) {
+			for (final ResourceAccess res : app.nodeQuery(ResourceAccess.class).sort(ResourceAccess.signature).getAsList()) {
 
-				final Map<String, Object> grant = new LinkedHashMap<>();
+				final Map<String, Object> grant = new TreeMap<>();
 				grants.add(grant);
 
 				grant.put("signature", res.getProperty(ResourceAccess.signature));
@@ -745,6 +741,8 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 			putIf(config, "basicAuthRealm",          node.getProperty(Page.basicAuthRealm));
 			putIf(config, "enableBasicAuth",         node.getProperty(Page.enableBasicAuth));
 		}
+
+		exportOwnershipAndSecurity(node, config);
 	}
 
 	private void exportFileConfiguration(final AbstractFile file, final Map<String, Object> config) {
@@ -763,6 +761,41 @@ public class DeployCommand extends NodeServiceCommand implements MaintenanceComm
 			putIf(config, "isImage",                 file.getProperty(Image.isImage));
 			putIf(config, "width",                   file.getProperty(Image.width));
 			putIf(config, "height",                  file.getProperty(Image.height));
+		}
+
+		exportOwnershipAndSecurity(file, config);
+	}
+
+	private void exportOwnershipAndSecurity(final AbstractNode node, final Map<String, Object> config) {
+
+		// export unique name of owner node to pages.json
+		final Principal owner = node.getOwnerNode();
+		if (owner != null) {
+
+			final Map<String, Object> map = new HashMap<>();
+			map.put("name", owner.getName());
+
+			config.put("owner", map);
+		}
+
+		// export security grants
+		final List<Map<String, Object>> grantees = new LinkedList<>();
+		for (final Security security : node.getSecurityRelationships()) {
+
+			if (security != null) {
+
+				final Map<String, Object> grant = new TreeMap<>();
+
+				grant.put("name", security.getSourceNode().getProperty(AbstractNode.name));
+				grant.put("allowed", StringUtils.join(security.getPermissions(), ","));
+
+				grantees.add(grant);
+			}
+		}
+
+		// export non-empty collection only
+		if (!grantees.isEmpty()) {
+			config.put("grantees", grantees);
 		}
 	}
 

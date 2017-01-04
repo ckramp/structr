@@ -105,7 +105,7 @@ public class SchemaMethodResource extends SortableResource {
 
 	// ----- private methods -----
 	public static RestMethodResult invoke(final SecurityContext securityContext, final GraphObject entity, final String source, final Map<String, Object> propertySet) throws FrameworkException {
-		return SchemaMethodResource.wrapInResult(Actions.execute(securityContext, entity, "${" + source + "}", propertySet));
+		return SchemaMethodResource.wrapInResult(Actions.execute(securityContext, entity, "${" + source.trim() + "}", propertySet));
 	}
 
 	public static RestMethodResult wrapInResult(final Object obj) {
@@ -131,8 +131,9 @@ public class SchemaMethodResource extends SortableResource {
 	public static String findMethodSource(final Class type, final String methodName) throws IllegalPathException {
 
 		try {
-			final App app               = StructrApp.getInstance();
-			final String typeName       = type.getSimpleName();
+			final App app         = StructrApp.getInstance();
+			final String typeName = type.getSimpleName();
+			Class currentType     = type;
 
 			// first step: schema node or one of its parents
 			SchemaNode schemaNode = app.nodeQuery(SchemaNode.class).andName(typeName).getFirst();
@@ -146,17 +147,17 @@ public class SchemaMethodResource extends SortableResource {
 					}
 				}
 
-				Class parentType = type.getSuperclass();
-				if (parentType != null) {
+				currentType = currentType.getSuperclass();
+				if (currentType != null) {
 
 					// skip non-dynamic types
-					if (parentType.getSimpleName().equals(typeName) || !parentType.getName().startsWith("org.structr.dynamic.")) {
-						parentType = parentType.getSuperclass();
+					if (currentType.getSimpleName().equals(typeName) || !currentType.getName().startsWith("org.structr.dynamic.")) {
+						currentType = currentType.getSuperclass();
 					}
 
-					if (parentType != null && parentType.getName().startsWith("org.structr.dynamic.")) {
+					if (currentType != null && currentType.getName().startsWith("org.structr.dynamic.")) {
 
-						schemaNode = app.nodeQuery(SchemaNode.class).andName(parentType.getSimpleName()).getFirst();
+						schemaNode = app.nodeQuery(SchemaNode.class).andName(currentType.getSimpleName()).getFirst();
 
 					} else {
 

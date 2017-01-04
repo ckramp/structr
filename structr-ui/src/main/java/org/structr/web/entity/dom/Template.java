@@ -49,7 +49,8 @@ public class Template extends Content {
 	@Override
 	public void renderContent(final RenderContext renderContext, final int depth) throws FrameworkException {
 
-		if (EditMode.DEPLOYMENT.equals(renderContext.getEditMode(securityContext.getUser(false)))) {
+		final EditMode editMode = renderContext.getEditMode(securityContext.getUser(false));
+		if (EditMode.DEPLOYMENT.equals(editMode)) {
 
 			final DOMNode _syncedNode = (DOMNode) getProperty(sharedComponent);
 			final AsyncBuffer out     = renderContext.getBuffer();
@@ -57,6 +58,8 @@ public class Template extends Content {
 			if (depth > 0) {
 				out.append(DOMNode.indent(depth, renderContext));
 			}
+
+			renderDeploymentExportComments(out, true);
 
 			out.append("<structr:template src=\"");
 
@@ -75,8 +78,8 @@ public class Template extends Content {
 
 			out.append("\"");
 
-			// include custom attributes in templates as well!
-			renderCustomAttributes(out, securityContext, renderContext);
+			renderSharedComponentConfiguration(out, editMode);
+			renderCustomAttributes(out, securityContext, renderContext); // include custom attributes in templates as well!
 
 			out.append(">");
 

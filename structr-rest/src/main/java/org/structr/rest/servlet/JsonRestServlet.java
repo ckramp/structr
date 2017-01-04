@@ -159,10 +159,12 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 
 		try {
 
+			assertInitialized();
+
 			// first thing to do!
 			request.setCharacterEncoding("UTF-8");
 			response.setCharacterEncoding("UTF-8");
-			response.setContentType("application/json; charset=utf-8;");
+			response.setContentType("application/json; charset=utf-8");
 
 			// isolate request authentication in a transaction
 			try (final Tx tx = StructrApp.getInstance().tx()) {
@@ -280,10 +282,12 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 
 		try {
 
+			assertInitialized();
+
 			// first thing to do!
 			request.setCharacterEncoding("UTF-8");
 			response.setCharacterEncoding("UTF-8");
-			response.setContentType("application/json; charset=utf-8;");
+			response.setContentType("application/json; charset=utf-8");
 
 			// isolate request authentication in a transaction
 			try (final Tx tx = StructrApp.getInstance().tx()) {
@@ -384,10 +388,12 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 
 		try {
 
+			assertInitialized();
+
 			// first thing to do!
 			request.setCharacterEncoding("UTF-8");
 			response.setCharacterEncoding("UTF-8");
-			response.setContentType("application/json; charset=utf-8;");
+			response.setContentType("application/json; charset=utf-8");
 
 			// get reader before initalizing security context
 			final String input = IOUtils.toString(request.getReader());
@@ -569,10 +575,12 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 
 		try {
 
+			assertInitialized();
+
 			// first thing to do!
 			request.setCharacterEncoding("UTF-8");
 			response.setCharacterEncoding("UTF-8");
-			response.setContentType("application/json; charset=utf-8;");
+			response.setContentType("application/json; charset=utf-8");
 
 			// get reader before initalizing security context
 			final String input = IOUtils.toString(request.getReader());
@@ -685,7 +693,7 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 	protected void doTrace(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 
 //		logRequest("TRACE", request);
-		response.setContentType("application/json; charset=UTF-8;");
+		response.setContentType("application/json; charset=UTF-8");
 		response.setCharacterEncoding("UTF-8");
 
 		int code = HttpServletResponse.SC_METHOD_NOT_ALLOWED;
@@ -753,7 +761,7 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 			// first thing to do!
 			request.setCharacterEncoding("UTF-8");
 			response.setCharacterEncoding("UTF-8");
-			response.setContentType("application/json; charset=utf-8;");
+			response.setContentType("application/json; charset=utf-8");
 
 			// isolate request authentication in a transaction
 			try (final Tx tx = StructrApp.getInstance().tx()) {
@@ -819,12 +827,12 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 
 			if (returnContent) {
 
-                                if (!(resource instanceof StaticRelationshipResource) && !result.isPrimitiveArray() && !result.isEmpty()) {
+				if (!(resource instanceof StaticRelationshipResource) && !result.isPrimitiveArray() && !result.isEmpty()) {
 
-                                        result.setIsCollection(resource.isCollectionResource());
-                                        result.setIsPrimitiveArray(resource.isPrimitiveArray());
+					result.setIsCollection(resource.isCollectionResource());
+					result.setIsPrimitiveArray(resource.isPrimitiveArray());
 
-                                }
+				}
 
 				PagingHelper.addPagingParameter(result, pageSize, page);
 
@@ -849,7 +857,8 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 					// isolate write output
 					try (final Tx tx = app.tx()) {
 
-						response.setContentType("text/html; charset=utf-8;");
+						// no trailing semicolon so we dont trip MimeTypes.getContentTypeWithoutCharset
+						response.setContentType("text/html; charset=utf-8");
 
 						try (final Writer writer = response.getWriter()) {
 
@@ -867,7 +876,10 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 					// isolate write output
 					try (final Tx tx = app.tx()) {
 
-						response.setContentType("application/json; charset=utf-8;");
+						// no trailing semicolon so we dont trip MimeTypes.getContentTypeWithoutCharset
+						response.setContentType("application/json; charset=utf-8");
+
+
 						try (final Writer writer = response.getWriter()) {
 
 							jsonStreamer.stream(securityContext, writer, result, baseUrl);
@@ -928,6 +940,13 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 				logger.warn("Unable to flush and close response: {}", t.getMessage());
 			}
 
+		}
+	}
+
+	private void assertInitialized() throws FrameworkException {
+
+		if (!Services.getInstance().isInitialized()) {
+			throw new FrameworkException(503, "System is not initialized yet.");
 		}
 	}
 

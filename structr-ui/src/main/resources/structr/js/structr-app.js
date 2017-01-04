@@ -43,20 +43,22 @@ $(function() { $('head').append('<link rel="stylesheet" type="text/css" href="/s
  * This file has to be present in a web page to make Structr widgets work.
  */
 
-var structrRestUrl = '/structr/rest/'; // TODO: Auto-detect base URI
+var structrRestUrl = '/structr/rest/';
 var buttonSelector = '[data-structr-action]';
 var altKey = false, ctrlKey = false, shiftKey = false, eKey = false;
+// to set a non-default locale, set the global variable structrAppLocale
+var structrAppLocale = structrAppLocale || 'en_EN';
+
 
 $(function() {
 
-	var s = new StructrApp(structrRestUrl);
+	var s = new StructrApp(structrRestUrl, structrAppLocale);
 	s.activateButtons(buttonSelector);
 	$(document).trigger('structr-ready');
 	s.hideNonEdit();
 
 	$(window).on('keydown', function(e) {
 		var k = e.which;
-		//console.log('before down', k, altKey, ctrlKey, shiftKey, eKey)
 		if (k === 16)
 			shiftKey = true;
 		if (k === 17)
@@ -65,12 +67,10 @@ $(function() {
 			ctrlKey = true;
 		if (k === 69)
 			eKey = true;
-		//console.log('after down', k, altKey, ctrlKey, shiftKey, eKey)
 	});
 
 	$(window).on('keyup', function(e) {
 		var k = e.which;
-		//console.log('before up', k, altKey, ctrlKey, shiftKey, eKey)
 		if (k === 16)
 			shiftKey = false;
 		if (k === 17)
@@ -79,7 +79,6 @@ $(function() {
 			ctrlKey = false;
 		if (k === 69)
 			eKey = false;
-		//console.log('after up', k, altKey, ctrlKey, shiftKey, eKey)
 	});
 
 });
@@ -88,9 +87,12 @@ $(function() {
  * Base class for Structr apps
  *
  * @param baseUrl
+ * @param locale
  * @returns {StructrApp}
  */
-function StructrApp(baseUrl) {
+function StructrApp(baseUrl, locale) {
+	this.locale = locale || 'en_EN';
+	this.lang = this.locale.split('_')[0];
 	if (baseUrl) {
 		structrRestUrl = baseUrl;
 	}
@@ -101,6 +103,55 @@ function StructrApp(baseUrl) {
 	this.data = {};
 	this.btnLabel = undefined;
 
+	this.labels = {
+		en : {
+			save                             : 'Save',
+			saving                           : 'Saving',
+			cancel                           : 'Cancel',
+			edit                             : 'Edit',
+			sucessfullyUpdated               : 'Successfully updated',
+			successfullyCreatedNew           : 'Successfully created new',
+			couldNotUpdate                   : 'Could not update',
+			couldNotCreate                   : 'Could not create',
+			checking                         : 'Checking...',
+			wrongUsernameOrPassword          : 'Wrong username or password!',
+			pleaseEnterEMail                 : 'Please enter your e-mail address!',
+			processing                       : 'Processing...',
+			checkYourInbox                   : 'Thanks! Please check your inbox.',
+			success                          : 'Success!',
+			passwordLinkSent                 : 'Link to reset password sent. Please check your inbox or spam folder.',
+			areYouSure                       : 'Are you sure?',
+			areYourSureToDelete              : 'Are you sure to delete',
+			successfullyExecutedCustomAction : 'Successfully executed custom action',
+			couldNotExecuteCustomAction     : 'Could not execute custom action',
+			couldNotReadRelatedProperty      : 'Could not read related property',
+			makeSureContainedInEntity        : 'Make sure it is contained in the\nentity\'s ui view and readable via REST.',
+		},
+		de : {
+			save                             : 'Speichern',
+			saving                           : 'Speichere ...',
+			cancel                           : 'Abbrechen',
+			edit                             : 'Bearbeiten',
+			sucessfullyUpdated               : 'Erfolgreich gespeichert:',
+			successfullyCreatedNew           : 'Neues Object erfolgreich erstellt vom Typ',
+			couldNotUpdate                   : 'Konnte nicht speichern: ',
+			couldNotCreate                   : 'Konnte nicht erstellen:',
+			checking                         : 'Prüfe ...',
+			wrongUsernameOrPassword          : 'Falscher Benutzername oder Passwort!',
+			pleaseEnterEMail                 : 'Bitte E-Mail-Adresse eingeben!',
+			processing                       : 'In Bearbeitung ...',
+			checkYourInbox                   : 'Danke! Bitte E-Mail-Eingang prüfen.',
+			success                          : 'Erfolgreich!',
+			passwordLinkSent                 : 'Link zum Passwort-Reset wurde verschickt. Bitte E-Mail-Eingang prüfen.',
+			areYouSure                       : 'Sicher?',
+			areYourSureToDelete              : 'Wirklich löschen?',
+			successfullyExecutedCustomAction : 'Benutzerdefinierte Aktion erfolgreich ausgeführt:',
+			couldNotExecuteCustomAction      : 'Konnte benutzerdefinierte Aktion nicht ausführen:',
+			couldNotReadRelatedProperty      : 'Konnte entferntes Attribut nicht lesen:',
+			makeSureContainedInEntity        : 'Stellen Sie sicher, dass es in der\nEntität und in deren ui-View enthalten ist\nsowie per REST lesbar ist.',
+		}
+	}
+
 	/**
 	 * Bind 'click' event to all Structr buttons
 	 */
@@ -109,6 +160,7 @@ function StructrApp(baseUrl) {
 			e.preventDefault();
 			e.stopPropagation();
 			var btn = $(this);
+			var enableBtnFunction = function () { enableButton(btn); };
 			disableButton(btn);
 			s.btnLabel = s.btnLabel || btn.text();
 			var a = btn.attr('data-structr-action').split(':');
@@ -126,14 +178,16 @@ function StructrApp(baseUrl) {
 
 			if (action === 'create') {
 				var data = s.collectData(btn, id, attrs, type, suffix);
-				s.create(btn, type, data, returnUrl, appendId, function() {enableButton(btn);}, function() {enableButton(btn);});
+				s.create(btn, type, data, reload, returnUrl, appendId, enableBtnFunction, enableBtnFunction);
 
 			} else if (action === 'save') {
-				s.saveAction(btn, id, attrs, type, suffix, returnUrl || reload, 'Successfully updated ' + id, 'Could not update ' + id, function() {
-					enableButton(btn);
-					//s.cancelEditAction(btn, id, attrs, suffix, reload);
-				}, function() {
-					s.cancelEditAction(btn, id, attrs, suffix, returnUrl);
+				s.saveAction(btn, id, attrs, type, suffix, reload, returnUrl, s.labels[s.lang].successfullyUpdated + ' ' + id, s.labels[s.lang].couldNotUpdate + ' ' + id, enableBtnFunction, function(revert) {
+					if (revert) {
+						var cancelEditButton = $('[data-structr-action="cancel-edit' + (type ? ':' + type : '') + '"]');
+						s.cancelEditAction(cancelEditButton, id, attrs, type, suffix, reload, returnUrl);
+					} else {
+						enableButton(btn);
+					}
 				});
 
 			} else if (action === 'edit') {
@@ -144,23 +198,23 @@ function StructrApp(baseUrl) {
 
 			} else if (action === 'delete') {
 				var f = s.field($('[data-structr-attr="name"]', container));
-				s.del(btn, id, type, btn.attr('data-structr-confirm') === 'true', returnUrl, f ? f.val : undefined);
+				s.del(btn, id, type, (btn.attr('data-structr-confirm') === 'true'), reload, returnUrl, (f ? f.val : undefined));
 
 			} else if (action === 'login') {
-				s.loginAction(btn, id, attrs, returnUrl, function() {enableButton(btn);}, function() {enableButton(btn);});
+				s.loginAction(btn, id, attrs, reload, returnUrl, enableBtnFunction, enableBtnFunction);
 
 			} else if (action === 'logout') {
-				s.logoutAction(btn, id, attrs, returnUrl, function() {enableButton(btn);}, function() {enableButton(btn);});
+				s.logoutAction(btn, id, attrs, reload, returnUrl, enableBtnFunction, enableBtnFunction);
 
 			} else if (action === 'registration') {
-				s.registrationAction(btn, id, attrs, returnUrl, function() {enableButton(btn);}, function() {enableButton(btn);});
+				s.registrationAction(btn, id, attrs, reload, returnUrl, enableBtnFunction, enableBtnFunction);
 
 			} else if (action === 'reset-password') {
-				s.resetPasswordAction(btn, id, attrs, returnUrl, function() {enableButton(btn);}, function() {enableButton(btn);});
+				s.resetPasswordAction(btn, id, attrs, reload, returnUrl, enableBtnFunction, enableBtnFunction);
 
 			} else {
 				var data = s.collectData(btn, id, attrs, type, suffix);
-				s.customAction(btn, id, type, btn.attr('data-structr-confirm') === 'true', action, data, returnUrl, appendId, function() {enableButton(btn);}, function() {enableButton(btn);});
+				s.customAction(btn, id, type, (btn.attr('data-structr-confirm') === 'true'), action, data, reload, returnUrl, appendId, enableBtnFunction, enableBtnFunction);
 			}
 		});
 	},
@@ -195,15 +249,19 @@ function StructrApp(baseUrl) {
 			}
 		}
 
+		if (paramKey === 'attr' && possibleFields.length === 0) {
+			possibleFields = s.getPossibleFields(container, suffix, type, key, 'name');
+		}
+
 		return possibleFields;
 	},
 	this.container = function(btn, id) {
 	    var form = btn.parents('form');
 	    var container;
 	    if (form.length === 1) {
-		container = form;
+			container = form;
 	    } else {
-		container = btn.parents('[data-structr-id="' + id + '"]');
+			container = btn.parents('[data-structr-id="' + id + '"]');
 	    }
 	    return container;
 	},
@@ -249,7 +307,6 @@ function StructrApp(baseUrl) {
 				});
 				anchor.attr('data-structr-href', href);
 			}
-			//el.html(inputField(id, key, val));
 
 			// don't replace select elements
 			var inp = s.input(el);
@@ -259,8 +316,7 @@ function StructrApp(baseUrl) {
 
 			if (f.type === 'Boolean') {
 				el.html(checkbox(f));
-			} else if (f.type === 'String' || f.type === 'Integer' || f.type === 'Double' || f.type === 'Date') {
-				//console.log(f.format);
+			} else if (f.type === 'String' || f.type === 'Integer' || f.type === 'Long' || f.type === 'Double' || f.type === 'Date') {
 				if (f.format && f.format === 'multi-line') {
 					el.html(textarea(f));
 				} else {
@@ -290,11 +346,9 @@ function StructrApp(baseUrl) {
 				}
 			}
 
-			//var el = container.find('[data-structr-attr="' + f.key + '"]');
 			var inp = s.input(el);
 			inp.addClass(f['class']);
 
-			//console.log('editAction: input element', inp);
 			if (f.type !== 'Enum') {
 				resizeInput(inp);
 			}
@@ -307,80 +361,87 @@ function StructrApp(baseUrl) {
 
 			inp.on('keyup', function(e) {
 				if (f.type === 'String') {
-					//console.log('keyup', inp, s.field(inp))
 					s.checkInput(e, s.field(inp), inp);
 				}
 			});
 
 			if (f.type === 'Date') {
-				var dateTimeFormat = f.format ? f.format.split('\'T\'') : 'yyyy-MM-ddTHH:mm:ssZ';
-				//console.log(dateTimeFormat);
-				var dateFormat = dateTimeFormat ? dateTimeFormat[0] : 'yyyy-MM-dd',
-					timeFormat = (dateTimeFormat && dateTimeFormat.length > 1) ? dateTimeFormat[1] : undefined;
+				var defaultSettings = true;
+				var dateFormat = 'yy-mm-dd';
+				var targetDateFormat = 'yyyy-MM-dd';
+				var timeFormat = 'HH:mm:ssz';
+
+				if (f.format) {
+					// user-supplied format in attribute "data-structr-format"
+					defaultSettings = false;
+
+					var dateTimeFormat = f.format.split('\'T\'');
+					dateFormat = dateTimeFormat[0];
+					timeFormat = dateTimeFormat[1];
+				}
 
 				inp.on('mouseup', function(event) {
 					event.preventDefault();
 					var input = $(this);
 
-					if (timeFormat) {
+					if (timeFormat && typeof input.datetimepicker === "function") {
 						input.datetimepicker({
-							// ISO8601 Format: 'yyyy-MM-dd"T"HH:mm:ssZ'
-							dateFormat: 'yy-mm-dd',
-							timeFormat: 'HH:mm:ssz',
-							separator: 'T',
-							onClose: function() {
-								var newValue = input.val();
-								//console.log(newValue, moment(newValue), f.format);//, moment(newValue).formatWithJDF(dateTimeFormat));
-								var formattedValue = moment(newValue).formatWithJDF(dateFormat + 'T' + timeFormat);
-								//input.val(formattedValue);
-							}
+							dateFormat: dateFormat,
+							timeFormat: timeFormat,
+							separator: 'T'
 						});
+						input.datetimepicker('show');
 					} else {
 						input.datepicker({
-							dateFormat: 'yy-mm-dd',
+							dateFormat: dateFormat,
 							onClose: function() {
-								var newValue = input.val();
-								var formattedValue = moment(newValue).formatWithJDF(dateFormat);
-								input.val(formattedValue);
+								if (defaultSettings === true && typeof moment === "function") {
+									var newValue = input.val();
+									var formattedValue = moment(newValue).formatWithJDF(targetDateFormat);
+									input.val(formattedValue);
+								}
 							}
 						});
+						input.datepicker('show');
 					}
-					input.datetimepicker('show');
 					input.off('mouseup');
 				});
 			}
 
 		});
 		var clazz = btn.attr('data-structr-edit-class');
-		$('<button data-structr-action="save" data-structr-id="' + id
+		$('<button class="' + clazz + '" data-structr-action="save:' + type + (suffix ? ':' + suffix : '') + '" data-structr-id="' + id
 			+ '" data-structr-attributes="' + attrs.join(',')
 			+ '" data-structr-reload="' + reload
 			+ (returnUrl ? '" data-structr-return="' + returnUrl : '')
-			+ '">Save</button>').insertBefore(btn);
+			+ '">' + s.labels[s.lang].save + '</button>').insertBefore(btn);
 		var saveButton = $('button[data-structr-action="save"][data-structr-id="' + id + '"]', container);
 		saveButton.prop('class', btn.prop('class')).after(' ');
 		saveButton.addClass(clazz);
+		btn.addClass(clazz);
 		enableButton(saveButton);
-		btn.text('Cancel').attr('data-structr-action', 'cancel-edit');
+		if (type) {
+			btn.text(s.labels[s.lang].cancel).attr('data-structr-action', 'cancel-edit:' + type);
+		} else {
+			btn.text(s.labels[s.lang].cancel).attr('data-structr-action', 'cancel-edit');
+		}
 		enableButton(btn);
 	},
 
-	this.saveAction = function(btn, id, attrs, type, suffix, reload, successMsg, errorMsg, onSuccess, onError) {
+	this.saveAction = function(btn, id, attrs, type, suffix, reload, returnUrl, successMsg, errorMsg, onSuccess, onError) {
 		var container = s.container(btn, id);
 		if (!s.data[id]) s.data[id] = {};
 		$.each(attrs, function(i, key) {
 
-			var inp = s.getPossibleFields(s.container(btn, id), suffix, type, key, 'name');
+			var inp = s.getPossibleFields(container, suffix, type, key, 'name');
 			var f = s.field(inp);
 			if (!f) return;
-			//console.log('saving', f);
 
 			if (key.contains('.')) {
 				delete s.data[id][key];
 				var prop = key.split('.');
 				var local = prop[0];
 				var related = prop[1];
-				//console.log('related property (key, local, value)', key, local, related, f);
 
 				key = local;
 				s.data[id][local] = {};
@@ -390,11 +451,11 @@ function StructrApp(baseUrl) {
 
 				s.data[id][key] = (f.val === true ? true : false);
 
-			} else if (f.type === 'Integer') {
+			} else if (f.type === 'Integer' || f.type === 'Long') {
 
 				s.data[id][key] = parseInt(f.val) || f.val;
 
-			} else if (f.type === 'Double' || f.type === 'Float') {
+			} else if (f.type === 'Double') {
 
 				s.data[id][key] = parseFloat(f.val) || f.val;
 
@@ -429,21 +490,17 @@ function StructrApp(baseUrl) {
 				}
 			}
 		});
-		//console.log('PUT', structrRestUrl + id, s.data[id], reload, false, successMsg, errorMsg, onSuccess, onError);
-		s.request(btn, 'PUT', structrRestUrl + (type ? type.toUnderscore() + '/' : '') + id, s.data[id], reload, false, successMsg, errorMsg, onSuccess, onError);
+		s.request(btn, 'PUT', structrRestUrl + (type ? type + '/' : '') + id, s.data[id], reload, returnUrl, false, successMsg, errorMsg, onSuccess, onError);
 	},
 
-	this.cancelEditAction = function(btn, id, attrs, type, suffix, reload) {
-		if (reload && typeof reload === 'boolean') {
-			window.location.reload();
+	this.cancelEditAction = function(btn, id, attrs, type, suffix, reload, returnUrl) {
+		if (reload) {
+			redirectOrReload(reload, returnUrl);
 		} else {
-			var container = $('[data-structr-id="' + id + '"]');
+			var container = s.container(btn, id);
 			$.each(attrs, function(i, key) {
-				var inp = s.getPossibleFields(s.container(btn, id), suffix, type, key, 'name');
+				var inp = s.getPossibleFields(container, suffix, type, key, 'name');
 				var f = s.field(inp);
-//                if (inp && inp.is('select')) {
-//                    return;
-//                }
 				var href = inp.attr('data-structr-href');
 				var anchor = inp.parent('a');
 				if (href && anchor.length) {
@@ -453,12 +510,16 @@ function StructrApp(baseUrl) {
 						document.location.href = href;
 					});
 				}
-				//inp.replaceWith(s.data[id][key]);
 				inp.replaceWith(f.displayVal);
 			});
 			// clear data
-			$('button[data-structr-id="' + id + '"][data-structr-action="save"]').remove();
-			btn.text(s.btnLabel).attr('data-structr-action', 'edit');
+			if (type) {
+				$('button[data-structr-id="' + id + '"][data-structr-action="save:' + type + '"]').remove();
+				btn.text(s.btnLabel).attr('data-structr-action', 'edit:' + type);
+			} else {
+				$('button[data-structr-id="' + id + '"][data-structr-action="save"]').remove();
+				btn.text(s.btnLabel).attr('data-structr-action', 'edit');
+			}
 			enableButton(btn);
 
 			//hide non edit elements and show edit elements
@@ -469,7 +530,7 @@ function StructrApp(baseUrl) {
 		}
 	},
 
-	this.loginAction = function(btn, id, attrs, reload) {
+	this.loginAction = function(btn, id, attrs, reload, returnUrl) {
 
 		var data = {};
 
@@ -483,8 +544,9 @@ function StructrApp(baseUrl) {
 			$('span', msgBox).remove();
 		}
 
-		var btnText = btn.text();
-		disableButton(btn, 'Checking...');
+		var oldBtnText = disableButton(btn, s.labels[s.lang].checking);
+
+		var app = this;
 
 		$.ajax({
 			type: 'POST',
@@ -494,25 +556,20 @@ function StructrApp(baseUrl) {
 			data: JSON.stringify(data),
 			statusCode: {
 				200: function(data) {
-					btn.text('Success!');
-					redirectOrReload(reload);
+					btn.text(s.labels[s.lang].success);
+					redirectOrReload(reload, returnUrl);
 				},
 				401: function() {
-					if (msgBox && msgBox.length) {
-						$('#msg').append('<span>Wrong username or password!</span>');
-						$('#msg span').delay(1000).fadeOut(1000);
-					} else {
-						btn.text('Wrong username or password!');
-						window.setTimeout(function() { btn.text(btnText); }, 1000);
-					}
-					enableButton(btn);
+					app.feedbackAction(msgBox, s.labels[s.lang].wrongUsernameOrPassword, 1000, btn, true, function () {
+						btn.text(oldBtnText);
+					});
 				}
 			}
 		});
 
 	},
-	this.logoutAction = function(btn, id, attrs, reload) {
-		disableButton(btn, 'Processing...');
+	this.logoutAction = function(btn, id, attrs, reload, returnUrl) {
+		disableButton(btn, s.labels[s.lang].processing);
 		$.ajax({
 			type: 'POST',
 			method: 'POST',
@@ -521,31 +578,24 @@ function StructrApp(baseUrl) {
 			data: JSON.stringify({}),
 			statusCode: {
 				200: function() {
-					redirectOrReload(reload);
+					redirectOrReload(reload, returnUrl);
 				}
 			}
 		});
 	},
-	this.registrationAction = function(btn, id, attrs, reload) {
+	this.registrationAction = function(btn, id, attrs, reload, returnUrl) {
 
-		var data = {};
-
-		if (attrs && attrs.length) {
-			attrs.forEach(function(attr) {
-				data[attr] = $('[data-structr-name="' + attr + '"]').val();
-			});
-		}
+		var data = this.collectValues(attrs);
 
 		var msgBox = $('#msg');
 		if (msgBox && msgBox.length) {
 			$('span', msgBox).remove();
 		}
 
-		var btnText = btn.text();
+		var oldBtnText = disableButton(btn, s.labels[s.lang].processing);
+		var successText = s.labels[s.lang].checkYourInbox;
 
-		disableButton(btn, 'Processing...');
-
-		var successText = 'Thanks! Please check your inbox.';
+		var app = this;
 
 		$.ajax({
 			type: 'POST',
@@ -555,56 +605,40 @@ function StructrApp(baseUrl) {
 			data: JSON.stringify(data),
 			statusCode: {
 				200: function() {
-					if (msgBox && msgBox.length) {
-						$('#msg').append('<span>' + successText + '</span>');
-						$('#msg span').delay(5000).fadeOut(5000);
-					} else {
-						btn.text(successText);
-						window.setTimeout(function() { enableButton(btn); btn.text(btnText); redirectOrReload(reload); }, 5000);
-					}
+					app.feedbackAction(msgBox, successText, 5000, btn, false, function () {
+						enableButton(btn);
+						btn.text(oldBtnText);
+						redirectOrReload(reload);
+					});
 				},
 				201: function() {
-					if (msgBox && msgBox.length) {
-						$('#msg').append('<span>' + successText + '</span>');
-						$('#msg span').delay(5000).fadeOut(5000);
-					} else {
-						btn.text(successText);
-						window.setTimeout(function() { enableButton(btn); btn.text(btnText); redirectOrReload(reload); }, 5000);
-					}
+					app.feedbackAction(msgBox, successText, 5000, btn, false, function () {
+						enableButton(btn);
+						btn.text(oldBtnText);
+						redirectOrReload(reload);
+					});
 				},
 				400: function() {
-					if (msgBox && msgBox.length) {
-						$('#msg').append('<span>Please enter your e-mail address!</span>');
-						$('#msg span').delay(1000).fadeOut(1000);
-					} else {
-						btn.text('Please enter your e-mail address!');
-						window.setTimeout(function() { btn.text(btnText); }, 1000);
-					}
-					enableButton(btn);
+					app.feedbackAction(msgBox, s.labels[s.lang].pleaseEnterEMail, 5000, btn, true, function () {
+						btn.text(oldBtnText);
+					});
 				}
 			}
 		});
 	},
-	this.resetPasswordAction = function(btn, id, attrs, reload) {
+	this.resetPasswordAction = function(btn, id, attrs, reload, returnUrl) {
 
-		var data = {};
-
-		if (attrs && attrs.length) {
-			attrs.forEach(function(attr) {
-				data[attr] = $('[data-structr-name="' + attr + '"]').val();
-			});
-		}
+		var data = this.collectValues(attrs);
 
 		var msgBox = $('#msg');
 		if (msgBox && msgBox.length) {
 			$('span', msgBox).remove();
 		}
 
-		var btnText = btn.text();
+		var oldBtnText = disableButton(btn, s.labels[s.lang].processing);
+		var successText = s.labels[s.lang].passwordLinkSent;
 
-		disableButton(btn, 'Processing...');
-
-		var successText = 'Link to reset password sent. Please check your inbox or spam folder.';
+		var app = this;
 
 		$.ajax({
 			type: 'POST',
@@ -614,23 +648,16 @@ function StructrApp(baseUrl) {
 			data: JSON.stringify(data),
 			statusCode: {
 				200: function() {
-					if (msgBox && msgBox.length) {
-						$('#msg').append('<span>' + successText + '</span>');
-						$('#msg span').delay(5000).fadeOut(5000);
-					} else {
-						btn.text(successText);
-						window.setTimeout(function() { enableButton(btn); btn.text(btnText); redirectOrReload(reload); }, 5000);
-					}
+					app.feedbackAction(msgBox, successText, 5000, btn, false, function () {
+						enableButton(btn);
+						btn.text(oldBtnText);
+						redirectOrReload(reload);
+					});
 				},
 				400: function() {
-					if (msgBox && msgBox.length) {
-						$('#msg').append('<span>Please enter your e-mail address!</span>');
-						$('#msg span').delay(1000).fadeOut(1000);
-					} else {
-						btn.text('Please enter your e-mail address!');
-						window.setTimeout(function() { btn.text(btnText); }, 1000);
-					}
-					enableButton(btn);
+					app.feedbackAction(msgBox, s.labels[s.lang].pleaseEnterEMail, 1000, btn, true, function () {
+						btn.text(oldBtnText);
+					});
 				}
 			}
 		});
@@ -639,25 +666,20 @@ function StructrApp(baseUrl) {
 		var el = $(elements[0]);
 		var inp;
 		if (el.is('input') || el.is('textarea') || el.is('select')) {
-			//console.log('el is input or textarea', el);
 			return el;
 		} else {
 			inp = el.children('textarea');
 			if (inp.length) {
-				//console.log('inp is textarea', inp);
 				return inp;
 			} else {
 				inp = el.children('input');
 				if (inp.length) {
-					//console.log('inp is input field', inp);
 					return inp;
 				} else {
 					inp = el.children('select');
 					if (inp.length) {
-						//console.log('inp is select element', inp);
 						return inp;
 					} else {
-						//console.log('no input found');
 						return null;
 					}
 				}
@@ -671,10 +693,12 @@ function StructrApp(baseUrl) {
 		var clazz       = el.attr('data-structr-edit-class');
 		var query       = el.attr('data-structr-custom-options-query');
 		var optionsKey  = el.attr('data-structr-options-key');
-		var type        = rawType ? rawType.match(/^\S+/)[0] : 'String', id = el.attr('data-structr-id'), key = el.attr('data-structr-attr'), rawVal = el.attr('data-structr-raw-value');
+		var type        = rawType ? rawType.match(/^\S+/)[0] : 'String';
+		var id          = el.attr('data-structr-id');
+		var key         = el.attr('data-structr-attr');
+		var rawVal      = el.attr('data-structr-raw-value');
 		var placeholder = el.attr('data-structr-placeholder');
 		var format      =  (rawType && rawType.contains(' ')) ? rawType.replace(type + ' ', '') : el.attr('data-structr-format');
-		//console.log('field', el, rawType, type, format, query, type, id, key, rawVal);
 		var val;
 		if (type === 'Boolean') {
 			if (el.is('input')) {
@@ -693,41 +717,49 @@ function StructrApp(baseUrl) {
 				}
 			} else {
 				val = rawVal || el.html().replace(/<br>/gi, '\n');
-				//val = rawVal || el.text();
 			}
 		}
-		var f = {'id': id, 'type': type, 'key': key, 'val': val, 'rawVal': rawVal, 'format': format, 'query' : query, 'optionsKey': optionsKey, 'class' : clazz, 'placeholder': placeholder, 'displayVal': displayVal};
-		//console.log(f);
-		return f;
+		return {
+			id: id,
+			type: type,
+			key: key,
+			val: val,
+			rawVal: rawVal,
+			format: format,
+			query: query,
+			optionsKey: optionsKey,
+			class: clazz,
+			placeholder: placeholder,
+			displayVal: displayVal
+		};
 	};
 
-	this.getRelatedType = function(type, key, callback) {
-		s.request(null, 'GET', structrRestUrl + '_schema', null, false, false, null, null, function(data) {
-			//console.log(data);
-		});
-	},
-
-	this.create = function(btn, type, data, reload, appendId, successCallback, errorCallback) {
-		//console.log('Create', type, data, reload, successCallback, errorCallback);
-		s.request(btn, 'POST', structrRestUrl + type, data, reload, appendId, 'Successfully created new ' + type, 'Could not create ' + type, successCallback, errorCallback);
+	this.create = function(btn, type, data, reload, returnUrl, appendId, successCallback, errorCallback) {
+		s.request(btn, 'POST', structrRestUrl + type, data, reload, returnUrl, appendId, s.labels[s.lang].successfullyCreatedNew + ' ' + type, s.labels[s.lang].couldNotCreate + ' ' + type, successCallback, errorCallback);
 	};
 
-	this.customAction = function(btn, id, type, conf, action, data, reload, appendId, successCallback, errorCallback) {
-		//console.log('Custom action', action, type, data, reload);
+	this.customAction = function(btn, id, type, conf, action, data, reload, returnUrl, appendId, successCallback, errorCallback) {
 		var sure = true;
 		if (conf) {
-			sure = confirm('Are you sure?');
+			sure = confirm(s.labels[s.lang].areYouSure);
 		}
 		if (!conf || sure) {
-			s.request(btn, 'POST', structrRestUrl + (type ? type + '/' : '') + (id ? id + '/' : '') + action, data, reload, appendId, 'Successfully executed custom action ' + action, 'Could not execute custom action ' + type, successCallback, errorCallback);
+			s.request(btn, 'POST', structrRestUrl + (type ? type + '/' : '') + (id ? id + '/' : '') + action, data, reload, returnUrl, appendId, s.labels[s.lang].successfullyExecutedCustomAction + ' ' + action, s.labels[s.lang].couldNotExecuteCustomAction + ' ' + type, successCallback, errorCallback);
 		} else {
 			enableButton(btn);
 		}
 	};
 
-	this.request = function(btn, method, url, data, reload, appendId, successMsg, errorMsg, onSuccess, onError) {
+	this.request = function(btn, method, url, data, reload, returnUrl, appendId, successMsg, errorMsg, onSuccess, onError) {
 		var dataString = JSON.stringify(data);
-		//console.log(method, url, data, reload, appendId, successMsg, errorMsg, onSuccess, onError);
+
+		var simpleAjaxErrorMessage = function(data, status, xhr) {
+			s.dialog('error', errorMsg + ': ' + data.responseText);
+			if (onError) {
+				onError();
+			}
+		};
+
 		$.ajax({
 			type: method,
 			url: url,
@@ -737,7 +769,7 @@ function StructrApp(baseUrl) {
 				200: function(data) {
 					s.dialog('success', successMsg);
 					if (reload) {
-						redirectOrReload(reload);
+						redirectOrReload(reload, returnUrl);
 					} else {
 						if (onSuccess) {
 							onSuccess(data);
@@ -748,36 +780,23 @@ function StructrApp(baseUrl) {
 					s.dialog('success', successMsg);
 					if (reload || appendId) {
 						if (appendId) {
-							if (!reload) {
-								reload = document.location.href;
+							if (!returnUrl) {
+								returnUrl = document.location.href;
 							}
-							reload = reload.replace(/(\/+|\/+[a-f0-9]{32})$/gi, '') + '/' + data.result[0];
+							var isParameter = returnUrl.endsWith('=');
+							var hasSlash    = returnUrl.endsWith('/');
+							returnUrl = returnUrl + (isParameter || hasSlash ? '' : '/') + data.result[0];
 						}
-						redirectOrReload(reload);
+						redirectOrReload(reload, returnUrl);
 					} else {
 						if (onSuccess) {
 							onSuccess();
 						}
 					}
 				},
-				400: function(data, status, xhr) {
-					s.dialog('error', errorMsg + ': ' + data.responseText);
-					if (onError) {
-						onError();
-					}
-				},
-				401: function(data, status, xhr) {
-					s.dialog('error', errorMsg + ': ' + data.responseText);
-					if (onError) {
-						onError();
-					}
-				},
-				403: function(data, status, xhr) {
-					s.dialog('error', errorMsg + ': ' + data.responseText);
-					if (onError) {
-						onError();
-					}
-				},
+				400: simpleAjaxErrorMessage,
+				401: simpleAjaxErrorMessage,
+				403: simpleAjaxErrorMessage,
 				404: function(data, status, xhr) {
 					s.dialog('error', errorMsg + ': ' + data.responseText);
 					if (onError) {
@@ -786,17 +805,12 @@ function StructrApp(baseUrl) {
 				},
 				422: function(data, status, xhr) {
 					s.dialog('error', errorMsg + ': ' + data.responseText);
-					s.showFormErrors(btn, data.responseJSON);
+					var revertEditMode = s.showFormErrors(btn, data.responseJSON);
 					if (onError) {
-						onError();
+						onError(revertEditMode);
 					}
 				},
-				500: function(data, status, xhr) {
-					s.dialog('error', errorMsg + ': ' + data.responseText);
-					if (onError) {
-						onError();
-					}
-				}
+				500: simpleAjaxErrorMessage
 			}
 		});
 	},
@@ -810,21 +824,32 @@ function StructrApp(baseUrl) {
 		var a = btn.attr('data-structr-action').split(':');
 		var suffix = a[2];
 		var id = btn.attr('data-structr-id');
-		var container = $('[data-structr-id="' + id + '"]');
+		var container = s.container(btn, id);
+
 		if (window.jQuery.validator) {
+			var errorsToShow = {};
 			var form;
-			Object.keys(msg.errors).forEach(function(type) {
-				Object.keys(msg.errors[type]).forEach(function(key) {
-					var inp = s.getPossibleFields(form, container, suffix, type, key);
-					inp.attr('name', type + '.' + key);
-					inp.attr('required', 'required');
-					inp.attr('data-validate', 'required');
-					form = inp.parents('form');
-				});
+			msg.errors.forEach(function(error) {
+				var inp = s.getPossibleFields(container, suffix, error.type, error.property);
+				var containsInputs = inp.find('input');
+				if (containsInputs.length > 0) {
+					inp = containsInputs;
+				}
+				inp.attr('name', error.type + '.' + error.property);
+				errorsToShow[error.type + '.' + error.property] = error.token;
+				form = inp.parents('form');
 			});
-			form.validate();
-			form.valid();
+
+			if (form) {
+				var validator = form.validate();
+				form.valid();
+				validator.showErrors(errorsToShow);
+
+				return false;
+			}
 		}
+
+		return true;
 	};
 
 	this.add = function(id, sourceId, sourceType, relatedProperty) {
@@ -833,13 +858,12 @@ function StructrApp(baseUrl) {
 		d[relatedProperty] = [ {'id': id} ];
 
 		$.ajax({
-			url: structrRestUrl + sourceType.toUnderscore() + '/' + sourceId + '/ui', method: 'GET', contentType: 'application/json',
+			url: structrRestUrl + sourceType + '/' + sourceId + '/ui', method: 'GET', contentType: 'application/json',
 			statusCode: {
 				200: function(data) {
-					//console.log(data.result, data.result[relatedProperty], d);
 
 					if (data.result[relatedProperty] === undefined) {
-						alert('Could not read related property\n\n    ' + sourceType + '.' + relatedProperty + '\n\nMake sure it is contained in the\nentity\'s ui view and readable via REST.');
+						alert(s.labels[s.lang].couldNotReadRelatedProperty + '\n\n    ' + sourceType + '.' + relatedProperty + '\n\n' + s.labels[s.lang].makeSureContainedInEntity);
 						return;
 					}
 
@@ -850,7 +874,7 @@ function StructrApp(baseUrl) {
 					}
 
 					$.ajax({
-						url: structrRestUrl + sourceType.toUnderscore() + '/' + sourceId, method: 'PUT', contentType: 'application/json',
+						url: structrRestUrl + sourceType + '/' + sourceId, method: 'PUT', contentType: 'application/json',
 						data: JSON.stringify(d),
 						statusCode: {
 							200: function() {
@@ -882,7 +906,7 @@ function StructrApp(baseUrl) {
 				200: function(data) {
 
 					if (data.result[relatedProperty] === undefined) {
-						alert('Could not read related property\n\n    ' + sourceType + '.' + relatedProperty + '\n\nMake sure it is contained in the\nentity\'s ui view and readable via REST.');
+						alert(s.labels[s.lang].couldNotReadRelatedProperty + '\n\n    ' + sourceType + '.' + relatedProperty + '\n\n' + s.labels[s.lang].makeSureContainedInEntity);
 						return;
 					}
 
@@ -894,10 +918,7 @@ function StructrApp(baseUrl) {
 						});
 					}
 
-					//console.log(data.result[relatedProperty], d, JSON.stringify(d));
-
 					$.ajax({
-						//url: '/structr/rest/' + sourceType.toUnderscore() + '/' + sourceId, method: 'PUT', contentType: 'application/json',
 						url: structrRestUrl + sourceId, method: 'PUT', contentType: 'application/json',
 						data: JSON.stringify(d),
 						statusCode: {
@@ -919,11 +940,10 @@ function StructrApp(baseUrl) {
 
 	};
 
-	this.del = function(btn, id, type, conf, reload, name) {
-		//console.log('Delete', type, id, conf, reload);
+	this.del = function(btn, id, type, conf, reload, returnUrl, name) {
 		var sure = true;
 		if (conf) {
-			sure = confirm('Are you sure to delete ' + (name ? name : id) + '?');
+			sure = confirm(s.labels[s.lang].areYourSureToDelete + ' ' + (name ? name : id) + '?');
 		}
 		if (!conf || sure) {
 			$.ajax({
@@ -931,8 +951,7 @@ function StructrApp(baseUrl) {
 				statusCode: {
 					200: function() {
 						if (reload) {
-							redirectOrReload(reload);
-							//window.location.reload();
+							redirectOrReload(reload, returnUrl);
 						} else {
 							enableButton(btn);
 						}
@@ -945,19 +964,18 @@ function StructrApp(baseUrl) {
 	};
 
 	this.save = function(f, b) {
-		//console.log(f, b);
 		var obj = {};
 
 		obj[f.key] = f.val;
 		if (b) {
-			b.html('<img src="/structr/img/al.gif"> Saving');
+			b.html('<img src="/structr/img/al.gif"> ' + s.labels[s.lang].saving);
 		}
 
 		$.ajax({url: baseUrl + f.id, method: 'PUT', contentType: 'application/json', data: JSON.stringify(obj),
 			statusCode: {
 				200: function() {
 					if (b) {
-						b.text('Success!').remove();
+						b.text(s.labels[s.lang].success).remove();
 					}
 				}
 			}
@@ -969,8 +987,6 @@ function StructrApp(baseUrl) {
 
 		if (f.type === 'String' && f.format === 'multi-line') {
 			return;
-		} else {
-			//console.log('checkInput', f.type, f.format);
 		}
 
 		if (isTextarea(inp[0])) {
@@ -992,7 +1008,7 @@ function StructrApp(baseUrl) {
 
 			}
 
-		} else if (k === 13) {// && shiftKey === true) {
+		} else if (k === 13) {
 
 			// Return key in input field => replace by textarea
 			var parent = inp.parent();
@@ -1022,77 +1038,76 @@ function StructrApp(baseUrl) {
 			$('#save_' + id + '_' + key).remove();
 		}
 
-		//(p.length ? p : inp).after('<button class="saveButton" id="save_' + id + '_' + key + '">Save</button>');
-		inp.after('<button id="save_' + id + '_' + key + '">Save</button>');
+		inp.after('<button id="save_' + id + '_' + key + '">' + s.labels[s.lang].save + '</button>');
 		$('#save_' + id + '_' + key).on('click', function() {
 			var btn = $(this), inp = btn.prev();
-			//console.log('append save button', btn, inp);
 			s.save(s.field(inp), btn);
 		});
 
 	};
 	this.hideEdit = function(container) {
 
-		// show elements [data-structr-hide="non-edit"]
-		$.each($('[data-structr-hide-id]', container), function() {
-			var id = $(this).attr('data-structr-hide-id');
-			$(this).replaceWith(hideNonEditElements[id]);
-			delete hideNonEditElements[id];
-
-		});
-
-		// hide edit elements
-		$.each($('[data-structr-hide="edit"]', container), function(i, obj) {
-
-			var random = Math.floor(Math.random()*1000000+1);
-
-			hideEditElements[random] = $(obj).clone(true,true);
-			$(obj).replaceWith('<div style="display:none;" data-structr-hide-id="'+random+'"></div>');
-		});
+		this.replaceHiddenDivsWithStoredElements($('[data-structr-hide-id]', container), hideNonEditElements);
+		this.replaceElementsWithHiddenDivs($('[data-structr-hide="edit"]', container), hideEditElements);
 
 		$(document).trigger("structr-edit");
 	};
 	this.hideNonEdit = function(container) {
 
-		//first call to hide all non-edit elements
 		if (container === undefined){
 
-			// hide all non-edit elements
-			$.each($('[data-structr-hide="non-edit"]'), function(i, obj) {
-
-				var random = Math.floor(Math.random()*1000000+1);
-
-				hideNonEditElements[random] = $(obj).clone(true,true);
-				$(obj).replaceWith('<div style="display:none;" data-structr-hide-id="'+random+'"></div>');
-			});
+			this.replaceElementsWithHiddenDivs($('[data-structr-hide="non-edit"]'), hideNonEditElements);
 
 		} else {
 
-			// show elements [data-structr-hide="edit"]
-			$.each($('[data-structr-hide-id]', container), function() {
-
-				var id = $(this).attr("data-structr-hide-id");
-				$(this).replaceWith(hideEditElements[id]);
-				delete hideNonEditElements[id];
-
-			});
-
-			// hide non-edit elements
-			$.each($('[data-structr-hide="non-edit"]', container), function(i, obj) {
-
-				var random = Math.floor(Math.random()*1000000+1);
-
-				hideNonEditElements[random] = $(obj).clone(true,true);
-				$(obj).replaceWith('<div style="display:none;" data-structr-hide-id="'+random+'"></div>');
-
-			});
+			this.replaceHiddenDivsWithStoredElements($('[data-structr-hide-id]', container), hideEditElements);
+			this.replaceElementsWithHiddenDivs($('[data-structr-hide="non-edit"]', container), hideNonEditElements);
 
 		}
+	};
+	this.replaceElementsWithHiddenDivs = function (el, elementStorage) {
+
+		$.each(el, function(i, obj) {
+			var random = Math.floor(Math.random()*1000000+1);
+			elementStorage[random] = $(obj).clone(true,true);
+			$(obj).replaceWith('<div style="display:none;" data-structr-hide-id="'+random+'"></div>');
+		});
+	};
+	this.replaceHiddenDivsWithStoredElements = function (el, elementStorage) {
+
+		$.each(el, function() {
+			var id = $(this).attr('data-structr-hide-id');
+			$(this).replaceWith(elementStorage[id]);
+			delete elementStorage[id];
+		});
+	};
+	this.feedbackAction = function (msgBox, messageText, delay, btn, shouldEnableButton, callback) {
+		if (msgBox && msgBox.length) {
+			$('#msg').append('<span>' + messageText + '</span>');
+			$('#msg span').delay(delay).fadeOut(delay);
+		} else {
+			btn.text(messageText);
+			if (typeof callback === "function") {
+				window.setTimeout(callback, delay);
+			}
+		}
+		if (shouldEnableButton) {
+			enableButton(btn);
+		}
+	};
+	this.collectValues = function (attrs) {
+		var data = {};
+		if (attrs && attrs.length) {
+			attrs.forEach(function(attr) {
+				data[attr] = $('[data-structr-name="' + attr + '"]').val();
+			});
+		}
+		return data;
 	};
 }
 function resizeInput(inp) {
 
-	var text = inp.val();// console.log(inp, 'value of input', text);
+	var text = inp.val();
 	// don't resize empty input elements with preset size
 	if (!text || (!text.length && inp.attr('size'))) return;
 
@@ -1111,11 +1126,7 @@ function resizeInput(inp) {
 	} else {
 
 		inp.attr('size', text.length + 1);
-
 	}
-	// Focus on last empty field
-//    if (!text || !text.length)
-//        inp.focus();
 }
 
 function urlParam(name) {
@@ -1191,12 +1202,10 @@ function isTextarea(el) {
 }
 
 function textarea(f) {
-	//console.log('rendering textarea', f);
 	return '<textarea data-structr-id="' + f.id + '" data-structr-type="' + f.type + '"' + (f['class'] ? ' data-structr-edit-class="' + f['class'] + '"' : '') + (f.format ? ' data-structr-format="' + f.format + '"' : '') + '" data-structr-name="' + f.key + '">' + f.val + '</textarea>';
 }
 
 function inputField(f) {
-	//console.log('rendering input field  ', f);
 	var size = (f.val ? f.val.length : (f.type && f.type === 'Date' ? 25 : f.key.length));
 	return '<input data-structr-id="' + f.id + '"' + (f['class'] ? ' data-structr-edit-class="' + f['class'] + '"' : '') + (f.format ? ' data-structr-format="' + f.format + '"' : '') + '" data-structr-name="' + f.key + '" data-structr-type="' + f.type + '" type="text" placeholder="' + (f.placeholder ? f.placeholder : '')
 			+ '" value="' + escapeForHtmlAttributes(f.val === 'null' ? '' : f.val)
@@ -1212,9 +1221,7 @@ function checkbox(f) {
 }
 
 function enumSelect(f) {
-	//console.log(f, f.format, f.format.split(','))
-	var inp = '<select data-structr-type="' + f.type + '"' + (f['class'] ? ' data-structr-edit-class="' + f['class'] + '"' : '') + ' data-structr-name="' + f.key + '" data-structr-id="' + f.id + '"></select>';
-	return inp;
+	return '<select data-structr-type="' + f.type + '"' + (f['class'] ? ' data-structr-edit-class="' + f['class'] + '"' : '') + ' data-structr-name="' + f.key + '" data-structr-id="' + f.id + '"></select>';
 }
 
 function singleSelect(f) {
@@ -1261,25 +1268,23 @@ function multiSelect(f) {
 }
 
 function enableButton(btn) {
-	btn.removeClass('disabled');
-	btn.removeAttr('disabled');
+	btn.removeClass('disabled').removeAttr('disabled');
 }
 
 function disableButton(btn, text) {
-	btn.addClass('disabled');
-	btn.attr('disabled', 'disabled');
+	var oldBtnText = btn.text();
+	btn.addClass('disabled').attr('disabled', 'disabled');
 	if (text) {
 		btn.text(text);
 	}
+	return oldBtnText;
 }
 
-function redirectOrReload(reload) {
-	if (reload) {
-		if (reload && typeof reload === 'string') {
-			window.location.href = reload;
-		} else if (reload === true) {
-			window.location.reload();
-		}
+function redirectOrReload(reload, returnUrl) {
+	if (returnUrl) {
+		window.location.href = returnUrl;
+	} else if (reload) {
+		window.location.reload();
 	}
 }
 

@@ -16,24 +16,26 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
-var widgets, remoteWidgets, widgetsUrl = 'https://widgets.structr.org/structr/rest/widgets';
-var win = $(window);
-var remoteWidgetData = [], remoteWidgetFilter;
-
 var _Widgets = {
+	url: 'https://widgets.structr.org/structr/rest/widgets',
+	remoteWidgetData: [],
+	remoteWidgetFilter: undefined,
+	remoteWidgetsEl: undefined,
+	localWidgetsEl: undefined,
+
 	reloadWidgets: function() {
 		widgetsSlideout.find(':not(.compTab)').remove();
 		widgetsSlideout.append(
 			'<div class="ver-scrollable"><h2>Local Widgets</h2><button class="add_widgets_icon button"><img title="Add Widget" alt="Add Widget" src="' + _Icons.add_widget_icon + '"> Add Widget</button>' +
 			'<div id="widgets"></div><h2>Remote Widgets</h2><input placeholder="Filter..." id="remoteWidgetsFilter"><div id="remoteWidgets"></div></div>');
-		widgets = $('#widgets', widgetsSlideout);
+		_Widgets.localWidgetsEl = $('#widgets', widgetsSlideout);
 
 		$('.add_widgets_icon', widgetsSlideout).on('click', function(e) {
 			e.stopPropagation();
 			Command.create({type: 'Widget'});
 		});
 
-		widgets.droppable({
+		_Widgets.localWidgetsEl.droppable({
 			drop: function(e, ui) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -66,14 +68,14 @@ var _Widgets = {
 		});
 
 		_Pager.initPager('local-widgets', 'Widget', 1, 25);
-		_Pager.addPager('local-widgets', widgets, true, 'Widget', 'public', function(entities) {
+		_Pager.addPager('local-widgets', _Widgets.localWidgetsEl, true, 'Widget', 'public', function(entities) {
 			entities.forEach(function (entity) {
 				StructrModel.create(entity, null, false);
-				_Widgets.appendWidgetElement(entity, false, widgets);
+				_Widgets.appendWidgetElement(entity, false, _Widgets.localWidgetsEl);
 			});
 		});
 
-		remoteWidgets = $('#remoteWidgets', widgetsSlideout);
+		_Widgets.remoteWidgetsEl = $('#remoteWidgets', widgetsSlideout);
 
 		$('#remoteWidgetsFilter').keyup(function (e) {
 			if (e.keyCode === 27) {
@@ -87,14 +89,14 @@ var _Widgets = {
 
 	},
 	refreshRemoteWidgets: function() {
-		remoteWidgetFilter = undefined;
+		_Widgets.remoteWidgetFilter = undefined;
 
-		if (!widgetsUrl.startsWith(document.location.hostname)) {
+		if (!_Widgets.url.startsWith(document.location.hostname)) {
 
-			_Widgets.getRemoteWidgets(widgetsUrl, function(entity) {
+			_Widgets.getRemoteWidgets(_Widgets.url, function(entity) {
 				var obj = StructrModel.create(entity, null, false);
-				obj.srcUrl = widgetsUrl + '/' + entity.id;
-				remoteWidgetData.push(obj);
+				obj.srcUrl = _Widgets.url + '/' + entity.id;
+				_Widgets.remoteWidgetData.push(obj);
 			}, function () {
 				_Widgets.repaintRemoteWidgets('');
 			});
@@ -102,25 +104,25 @@ var _Widgets = {
 		}
 	},
 	repaintRemoteWidgets: function (search) {
-		if (search !== remoteWidgetFilter) {
+		if (search !== _Widgets.remoteWidgetFilter) {
 
-			remoteWidgetFilter = search;
-			remoteWidgets.empty();
+			_Widgets.remoteWidgetFilter = search;
+			_Widgets.remoteWidgetsEl.empty();
 
 			if (search && search.length > 0) {
 
 				search = search.toLowerCase();
 
-				remoteWidgetData.forEach(function (obj) {
+				_Widgets.remoteWidgetData.forEach(function (obj) {
 					if (obj.name.toLowerCase().indexOf(search) !== -1) {
-						_Widgets.appendWidgetElement(obj, true, remoteWidgets);
+						_Widgets.appendWidgetElement(obj, true, _Widgets.remoteWidgetsEl);
 					}
 				});
 
 			} else {
 
-				remoteWidgetData.forEach(function (obj) {
-					_Widgets.appendWidgetElement(obj, true, remoteWidgets);
+				_Widgets.remoteWidgetData.forEach(function (obj) {
+					_Widgets.appendWidgetElement(obj, true, _Widgets.remoteWidgetsEl);
 				});
 
 			}
@@ -227,7 +229,7 @@ var _Widgets = {
 		_Logger.log(_LogType.WIDGETS, 'Widgets.appendWidgetElement', widget, remote);
 
 		var icon = _Icons.widget_icon;
-		var parent = _Widgets.getTreeParent(el ? el : (remote ? remoteWidgets : widgets), widget.treePath, remote ? '_remote' : '_local');
+		var parent = _Widgets.getTreeParent(el ? el : (remote ? _Widgets.remoteWidgetsEl : _Widgets.localWidgetsEl), widget.treePath, remote ? '_remote' : '_local');
 		var delIcon, newDelIcon;
 		var div = Structr.node(widget.id);
 		if (div && div.length) {
@@ -293,10 +295,7 @@ var _Widgets = {
 			helper: 'clone',
 			appendTo: '#main',
 			stack: '.node',
-			zIndex: 99,
-			stop: function(e, ui) {
-				//$('#pages_').droppable('enable').removeClass('nodeHover');
-			}
+			zIndex: 99
 		});
 
 		if (!remote) {
@@ -384,8 +383,15 @@ var _Widgets = {
 				return;
 			}
 
+			var successCallback = function () {
+				Structr.showAndHideInfoBoxMessage('Widget source saved.', 'success', 2000, 200);
+				text1 = newText;
+				dialogSaveButton.prop("disabled", true).addClass('disabled');
+				saveAndClose.prop("disabled", true).addClass('disabled');
+			};
+
 			if (entity.srcUrl) {
-				var data = JSON.stringify({'source': newText});
+				var data = JSON.stringify({source: newText});
 				_Logger.log(_LogType.WIDGETS, 'update remote widget', entity.srcUrl, data);
 				$.ajax({
 					url: entity.srcUrl,
@@ -395,12 +401,7 @@ var _Widgets = {
 					contentType: 'application/json; charset=utf-8',
 					statusCode: {
 						200: function(data) {
-							dialogMsg.html('<div class="infoBox success">Widget source saved.</div>');
-							$('.infoBox', dialogMsg).delay(2000).fadeOut(200);
-							text1 = newText;
-							dialogSaveButton.prop("disabled", true).addClass('disabled');
-							saveAndClose.prop("disabled", true).addClass('disabled');
-
+							successCallback();
 						},
 						400: function(data, status, xhr) {
 							console.log(data, status, xhr);
@@ -427,11 +428,7 @@ var _Widgets = {
 			} else {
 
 				Command.setProperty(entity.id, 'source', newText, false, function() {
-					dialogMsg.html('<div class="infoBox success">Widget saved.</div>');
-					$('.infoBox', dialogMsg).delay(2000).fadeOut(200);
-					text1 = newText;
-					dialogSaveButton.prop("disabled", true).addClass('disabled');
-					saveAndClose.prop("disabled", true).addClass('disabled');
+					successCallback();
 				});
 
 			}

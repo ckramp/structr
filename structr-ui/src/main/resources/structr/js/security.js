@@ -24,67 +24,251 @@ $(document).ready(function() {
 });
 
 var _Security = {
-
 	groups: undefined,
 	users: undefined,
 	resourceAccesses: undefined,
 	securityTabKey: 'structrSecurityTab_' + port,
-
-	init : function() {
+	init: function() {
 		_Pager.initPager('users',           'User', 1, 25, 'name', 'asc');
 		_Pager.initPager('groups',          'Group', 1, 25, 'name', 'asc');
 		_Pager.initPager('resource-access', 'ResourceAccess', 1, 25, 'signature', 'asc');
 	},
-
-	onload : function() {
+	onload: function() {
 		_Security.init();
 
 		Structr.updateMainHelpLink('http://docs.structr.org/frontend-user-guide#Users and Groups');
 		_Logger.log(_LogType.SECURTIY, 'onload');
 
-		main.append('<div id="securityTabs"><ul id="securityTabsMenu"><li><a id="usersAndGroups_" href="#usersAndGroups"><span>Users and Groups</span></a></li><li><a id="resourceAccess_" href="#resourceAccess"><span>Resource Access Grants</span></a></li></ul><div id="usersAndGroups"></div><div id="resourceAccess"></div></div>');
-
-		$('#usersAndGroups').append('<div><div class="fit-to-height" id="users"></div><div class="fit-to-height" id="groups"></div></div>');
-		$('#resourceAccess').append('<div><div class="" id="resourceAccesses"></div></div>');
+		main.append(
+			'<div id="securityTabs">' +
+				'<ul id="securityTabsMenu"><li><a id="usersAndGroups_" href="#usersAndGroups"><span>Users and Groups</span></a></li><li><a id="resourceAccess_" href="#resourceAccess"><span>Resource Access Grants</span></a></li></ul>' +
+				'<div id="usersAndGroups"><div id="users"></div><div id="groups"></div></div><div id="resourceAccess"><div id="resourceAccesses"></div></div>' +
+			'</div>'
+		);
 
 		_Security.groups = $('#groups');
 		_Security.users = $('#users');
 		_Security.resourceAccesses = $('#resourceAccesses');
 
+		var activeTab = LSWrapper.getItem(_Security.securityTabKey) || 'usersAndGroups';
+		_Security.selectTab(activeTab);
+
 		$('#securityTabs').tabs({
+			active: (activeTab === 'usersAndGroups' ? 0 : 1),
 			activate: function(event, ui) {
-				var activeTab = ui.newPanel[0].id;
-				LSWrapper.setItem(_Security.securityTabKey, activeTab);
-
-				if (activeTab === 'usersAndGroups') {
-					_Security.refreshGroups();
-					_Security.refreshUsers();
-				} else if (activeTab === 'resourceAccess') {
-					_Security.refreshResourceAccesses();
-				}
-
+				_Security.selectTab(ui.newPanel[0].id);
 			}
 		});
 
-		var activeTab = LSWrapper.getItem(_Security.securityTabKey) || 'usersAndGroups';
-		if (activeTab === 'usersAndGroups') {
-			_Security.refreshGroups();
-			_Security.refreshUsers();
+		Structr.unblockMenu(100);
+	},
+	selectTab: function (tab) {
+
+		LSWrapper.setItem(_Security.securityTabKey, tab);
+
+		if (tab === 'usersAndGroups') {
+			_UsersAndGroups.refreshUsers();
+			_UsersAndGroups.refreshGroups();
+		} else if (tab === 'resourceAccess') {
+			_ResourceAccessGrants.refreshResourceAccesses();
+		}
+	}
+};
+
+var _UsersAndGroups = {
+
+	refreshUsers: function() {
+		_Security.users.empty();
+		_Security.users.append('<button class="add_user_icon button"><img title="Add User" alt="Add User" src="' + _Icons.user_add_icon + '"> Add User</button>');
+		$('.add_user_icon', main).on('click', function(e) {
+			e.stopPropagation();
+			return Command.create({type: 'User'});
+		});
+		var userPager = _Pager.addPager('users', _Security.users, true, 'User', 'public');
+		userPager.pager.append('<div>Filter: <input type="text" class="filter" data-attribute="name"></th></div>');
+		userPager.activateFilterElements();
+	},
+	createUserElement:function (user, group) {
+		var userName = user.name ? user.name : user.eMail ? '[' + user.eMail + ']' : '[unnamed]';
+
+		var userElement = $(
+				'<div class="node user userid_' + user.id + '">'
+				+ '<img class="typeIcon" src="' + _Icons.user_icon + '">'
+				+ ' <b title="' + userName + '" class="name_">' + userName + '</b> <span class="id">' + user.id + '</span>'
+				+ '</div>'
+		);
+		userElement.data('userId', user.id);
+
+		if (group) {
+			userElement.append('<img title="Remove user \'' + userName + '\' from group \'' + group.name + '\'" alt="Remove user ' + userName + ' from group \'' + group.name + '\'" class="delete_icon button" src="' + _Icons.user_delete_icon + '">');
+
+			$('.delete_icon', userElement).on('click', function(e) {
+				e.stopPropagation();
+				Command.removeFromCollection(group.id, 'members', user.id, function () {
+					_UsersAndGroups.deactivateNodeHover(user.id, '.userid_');
+				});
+			});
 		} else {
-			$('a[href="#' + activeTab + '"]').click();
+			userElement.append('<img title="Delete user \'' + userName + '\'" alt="Delete user \'' + userName + '\'" class="delete_icon button" src="' + _Icons.delete_icon + '">');
+
+			$('.delete_icon', userElement).on('click', function(e) {
+				e.stopPropagation();
+				_UsersAndGroups.deleteUser(this, user);
+			});
 		}
 
-		_Security.resize();
-		$(window).off('resize');
-		$(window).on('resize', function() {
-			_Security.resize();
+		return userElement;
+	},
+	appendUserToUserList: function (user) {
+
+		if (!_Security.users || !_Security.users.is(':visible')) {
+			return;
+		}
+
+		var userDiv = _UsersAndGroups.createUserElement(user);
+		_Security.users.append(userDiv);
+
+		userDiv.draggable({
+			revert: 'invalid',
+			helper: 'clone',
+			stack: '.node',
+			appendTo: '#main',
+			zIndex: 99
 		});
 
-		Structr.unblockMenu(100);
+		_Entities.appendEditPropertiesIcon(userDiv, user);
+		_UsersAndGroups.setMouseOver(userDiv, user.id, '.userid_');
+	},
+	appendUserToGroup: function (user, group, groupEl) {
 
+		var groupId = group.id;
+
+		var isExpanded = Structr.isExpanded(groupId);
+		_Entities.appendExpandIcon(groupEl, group, true, isExpanded);
+
+		if (!isExpanded) {
+			return;
+		}
+
+		var userDiv = _UsersAndGroups.createUserElement(user, group);
+
+		groupEl.append(userDiv.css({
+			top: 0,
+			left: 0
+		}));
+		userDiv.removeClass('ui-state-disabled').removeClass('ui-draggable-disabled').removeClass('ui-draggable');
+
+		_Entities.appendEditPropertiesIcon(userDiv, user);
+		_UsersAndGroups.setMouseOver(userDiv, user.id, '.userid_');
+	},
+	deleteUser: function(button, user) {
+		_Logger.log(_LogType.SECURTIY, 'deleteUser ' + user);
+		_Entities.deleteNode(button, user);
 	},
 
-	refreshResourceAccesses : function() {
+	refreshGroups: function() {
+		_Security.groups.empty();
+		_Security.groups.append('<button class="add_group_icon button"><img title="Add Group" alt="Add Group" src="' + _Icons.group_add_icon + '"> Add Group</button>');
+		$('.add_group_icon', main).on('click', function(e) {
+			e.stopPropagation();
+			return Command.create({type: 'Group'});
+		});
+		var groupPager = _Pager.addPager('groups', _Security.groups, true, 'Group', 'public');
+		groupPager.pager.append('<div>Filter: <input type="text" class="filter" data-attribute="name"></div>');
+		groupPager.activateFilterElements();
+	},
+	createGroupElement: function (group) {
+		var groupElement = $(
+				'<div class="node group groupid_' + group.id + '">'
+				+ '<img class="typeIcon" src="' + _Icons.group_icon + '">'
+				+ ' <b title="' + group.name + '" class="name_">' + group.name + '</b> <span class="id">' + group.id + '</span>'
+				+ '<img title="Delete Group ' + group.id + '" alt="Delete Group ' + group.id + '" class="delete_icon button" src="' + _Icons.delete_icon + '">'
+				+ '</div>'
+		);
+		groupElement.data('groupId', group.id);
+
+		$('.delete_icon', groupElement).on('click', function(e) {
+			e.stopPropagation();
+			_UsersAndGroups.deleteGroup(this, group);
+		});
+
+		return groupElement;
+	},
+	appendGroupElement: function(group) {
+
+		if (!_Security.groups || !_Security.groups.is(':visible')) {
+			return;
+		}
+
+		var hasChildren = group.members && group.members.length;
+
+		_Logger.log(_LogType.SECURTIY, 'appendGroupElement', group, hasChildren);
+
+		var groupDiv = _UsersAndGroups.createGroupElement(group);
+		_Security.groups.append(groupDiv);
+
+		_Entities.appendExpandIcon(groupDiv, group, hasChildren, Structr.isExpanded(group.id));
+		_Entities.appendEditPropertiesIcon(groupDiv, group);
+		_UsersAndGroups.setMouseOver(groupDiv, group.id, '.groupid_');
+
+		groupDiv.droppable({
+			accept: '.user',
+			greedy: true,
+			hoverClass: 'nodeHover',
+			tolerance: 'pointer',
+			drop: function(event, ui) {
+				var userId = Structr.getUserId(ui.draggable);
+				Command.appendUser(userId, group.id);
+			}
+		});
+
+		if (hasChildren) {
+			group.members.forEach(function(user) {
+				_UsersAndGroups.appendUserToGroup(user, group, groupDiv);
+			});
+		}
+
+		return groupDiv;
+	},
+	deleteGroup: function(button, group) {
+		_Logger.log(_LogType.SECURTIY, 'deleteGroup ' + group);
+		_Entities.deleteNode(button, group);
+	},
+
+	setMouseOver: function (node, id, prefix) {
+		node.children('b.name_').off('click').on('click', function(e) {
+			e.stopPropagation();
+			_Entities.makeAttributeEditable(node, id, 'b.name_', 'name');
+		});
+
+		node.on({
+			mouseover: function(e) {
+				e.stopPropagation();
+				_UsersAndGroups.activateNodeHover(id, prefix);
+			},
+			mouseout: function(e) {
+				e.stopPropagation();
+				_UsersAndGroups.deactivateNodeHover(id, prefix);
+			}
+		});
+	},
+	activateNodeHover: function (id, prefix) {
+		var nodes = $(prefix + id);
+		nodes.each(function (i, el) {
+			$(el).addClass('nodeHover').children('img.button').show().css('display', 'inline-block');;
+		});
+	},
+	deactivateNodeHover: function (id, prefix) {
+		var nodes = $(prefix + id);
+		nodes.each(function (i, el) {
+			$(el).removeClass('nodeHover').children('img.button').hide();
+		});
+	}
+};
+
+var _ResourceAccessGrants = {
+
+	refreshResourceAccesses: function() {
 		_Security.resourceAccesses.empty();
 
 		Structr.ensureIsAdmin(_Security.resourceAccesses, function() {
@@ -102,19 +286,16 @@ var _Security = {
 			raPager.activateFilterElements(_Security.resourceAccesses);
 
 			$('.add_grant_icon', _Security.resourceAccesses).on('click', function (e) {
-				_Security.addResourceGrant(e);
+				_ResourceAccessGrants.addResourceGrant(e);
 			});
 
 			$('#resource-signature', _Security.resourceAccesses).on('keyup', function (e) {
 				if (e.keyCode === 13) {
-					_Security.addResourceGrant(e);
+					_ResourceAccessGrants.addResourceGrant(e);
 				}
 			});
-
-			_Security.resize();
 		});
 	},
-
 	addResourceGrant: function(e) {
 		e.stopPropagation();
 
@@ -140,47 +321,11 @@ var _Security = {
 		window.setTimeout(reEnableInput, 250);
 	},
 
-	refreshGroups : function() {
-		_Security.groups.empty();
-		_Security.groups.append('<button class="add_group_icon button"><img title="Add Group" alt="Add Group" src="' + _Icons.group_add_icon + '"> Add Group</button>');
-		$('.add_group_icon', main).on('click', function(e) {
-			e.stopPropagation();
-			return Command.create({'type':'Group'});
-		});
-		var grpPager = _Pager.addPager('groups', _Security.groups, true, 'Group', 'public');
-		grpPager.pager.append('<div>Filter: <input type="text" class="filter" data-attribute="name"></div>');
-		grpPager.activateFilterElements();
-
-	},
-
-	refreshUsers : function() {
-		_Security.users.empty();
-		_Security.users.append('<button class="add_user_icon button"><img title="Add User" alt="Add User" src="' + _Icons.user_add_icon + '"> Add User</button>');
-		$('.add_user_icon', main).on('click', function(e) {
-			e.stopPropagation();
-			return Command.create({'type':'User'});
-		});
-		var usrPager = _Pager.addPager('users', _Security.users, true, 'User', 'public');
-		usrPager.pager.append('<div>Filter: <input type="text" class="filter" data-attribute="name"></th></div>');
-		usrPager.activateFilterElements();
-	},
-
-	deleteUser : function(button, user) {
-		_Logger.log(_LogType.SECURTIY, 'deleteUser ' + user);
-		_Entities.deleteNode(button, user);
-	},
-
-	deleteGroup : function(button, group) {
-		_Logger.log(_LogType.SECURTIY, 'deleteGroup ' + group);
-		_Entities.deleteNode(button, group);
-	},
-
-	deleteResourceAccess : function(button, resourceAccess) {
+	deleteResourceAccess: function(button, resourceAccess) {
 		_Logger.log(_LogType.SECURTIY, 'deleteResourceAccess ' + resourceAccess);
 		_Entities.deleteNode(button, resourceAccess);
 	},
-
-	appendResourceAccessElement : function(resourceAccess, replaceElement) {
+	appendResourceAccessElement: function(resourceAccess) {
 
 		if (!_Security.resourceAccesses || !_Security.resourceAccesses.is(':visible')) {
 			return;
@@ -206,7 +351,9 @@ var _Security = {
 		var flags = parseInt(resourceAccess.flags);
 		var trHtml = '<tr id="id_' + resourceAccess.id + '" class="resourceAccess"></tr>';
 
-		if (replaceElement) {
+		var replaceElement = $('#resourceAccessesTable #id_' + resourceAccess.id);
+
+		if (replaceElement && replaceElement.length) {
 			replaceElement.replaceWith(trHtml);
 		} else {
 			$('#resourceAccessesTable').append(trHtml);
@@ -223,24 +370,12 @@ var _Security = {
 		tr.append('<td><input type="text" class="bitmask" size="4" value="' + flags + '"></td>');
 		var bitmaskInput = $('.bitmask', tr);
 		bitmaskInput.on('blur', function() {
-			var id = tr.attr('id').substring(3);
-			var newFlags = $(this).val();
-			Command.setProperty(id, 'flags', newFlags, false, function() {
-				Command.get(id, function(obj) {
-					_Security.appendResourceAccessElement(obj, tr);
-				});
-			});
+			_ResourceAccessGrants.updateResourceAccessFlags(resourceAccess.id, $(this).val());
 		});
 
 		bitmaskInput.keypress(function(e) {
 			if (e.keyCode === 13) {
-				var id = tr.attr('id').substring(3);
-				var newFlags = $(this).val();
-				Command.setProperty(id, 'flags', newFlags, false, function() {
-					Command.get(id, function(obj) {
-						_Security.appendResourceAccessElement(obj, tr);
-					});
-				});
+				_ResourceAccessGrants.updateResourceAccessFlags(resourceAccess.id, $(this).val());
 			}
 		});
 
@@ -248,228 +383,33 @@ var _Security = {
 		$('.delete-resource-access', tr).on('click', function(e) {
 			e.stopPropagation();
 			resourceAccess.name = resourceAccess.signature;
-			_Security.deleteResourceAccess(this, resourceAccess);
+			_ResourceAccessGrants.deleteResourceAccess(this, resourceAccess);
 		});
 
-		if (replaceElement) {
+		if (replaceElement && replaceElement.length) {
 			blinkGreen(tr.find('td'));
 		}
 
 		var div = Structr.node(resourceAccess.id);
 
 		$('#resourceAccessesTable #id_' + resourceAccess.id + ' input[type=checkbox].resource-access-flag').on('change', function() {
-			var inp = $(this);
-			var tr = inp.closest('tr');
-			var id = tr.attr('id').substring(3);
 			var newFlags = 0;
 			tr.find('input:checked').each(function(i, input) {
 				newFlags += parseInt($(input).attr('data-flag'));
 			});
-			Command.setProperty(id, 'flags', newFlags, false, function() {
-				Command.get(id, function(obj) {
-					_Security.appendResourceAccessElement(obj, tr);
-				});
+			_ResourceAccessGrants.updateResourceAccessFlags(resourceAccess.id, newFlags);
+		});
+
+		return div;
+	},
+	updateResourceAccessFlags: function (id, newFlags) {
+
+		Command.setProperty(id, 'flags', newFlags, false, function() {
+			Command.get(id, function(obj) {
+				_ResourceAccessGrants.appendResourceAccessElement(obj);
 			});
 		});
 
-		return div;
-	},
-
-	appendGroupElement : function(group) {
-
-		if (!_Security.groups || !_Security.groups.is(':visible')) {
-			return;
-		}
-
-		var hasChildren = group.members && group.members.length;
-		_Logger.log(_LogType.SECURTIY, 'appendGroupElement', group, hasChildren);
-		_Security.groups.append('<div id="id_' + group.id + '" class="node group">'
-			+ '<img class="typeIcon" src="' + _Icons.group_icon + '">'
-			+ '<b title="' + group.name + '" class="name_">' + group.name + '</b> <span class="id">' + group.id + '</span>'
-			+ '</div>');
-		var div = Structr.node(group.id);
-
-		div.append('<img title="Delete Group ' + group.id + '" alt="Delete Group ' + group.id + '" class="delete_icon button" src="' + _Icons.delete_icon + '">');
-		$('.delete_icon', div).on('click', function(e) {
-			e.stopPropagation();
-			_Security.deleteGroup(this, group);
-		});
-
-		_Entities.appendExpandIcon(div, group, hasChildren);
-
-		div.droppable({
-			accept: '.user',
-			greedy: true,
-			hoverClass: 'nodeHover',
-			tolerance: 'pointer',
-			drop: function(event, ui) {
-				var self = $(this);
-				var userId = Structr.getId(ui.draggable);
-				var groupId = Structr.getId(self);
-				Structr.addExpandedNode(groupId);
-				Command.appendUser(userId, groupId);
-				$(ui.draggable).remove();
-			}
-		});
-
-		_Entities.appendEditPropertiesIcon(div, group);
-		_Entities.setMouseOver(div);
-
-		return div;
-	},
-
-	appendUserElement : function(user, group) {
-		_Logger.log(_LogType.SECURTIY, 'appendUserElement', user);
-
-		if (!_Security.users || !_Security.users.is(':visible')) {
-			return;
-		}
-
-		if (user.groups && user.groups.length > 0) {
-			for (i=0; i < user.groups.length; i++) {
-				var groupElement = Structr.node(user.groups[i].id);
-				if (groupElement) {
-					// at least one of the users groups is visible
-					return _Security.appendUserToGroup(user, user.groups[i], groupElement);
-				}
-			}
-		}
-
-		// none of the users groups is visible (or user has no groups)
-		return _Security.appendUserToUserList(user);
-	},
-	appendUserToUserList: function (user) {
-		_Security.users.append(_Security.getUserElementMarkup(user));
-
-		var name = _Security.getUserName(user);
-		var div = Structr.node(user.id);
-		if (!div || !div.length) return;
-
-
-		var newDelIcon = '<img title="Delete user \'' + name + '\'" alt="Delete user \'' + name + '\'" class="delete_icon button" src="' + _Icons.delete_icon + '">';
-		var delIcon = $('.delete_icon', div);
-
-		if (delIcon && delIcon.length) {
-			delIcon.replaceWith(newDelIcon);
-		} else {
-			div.append(newDelIcon);
-			delIcon = $('.delete_icon', div);
-		}
-
-		delIcon.on('click', function(e) {
-			e.stopPropagation();
-			_Security.deleteUser(this, user);
-		});
-
-		div.draggable({
-			revert: 'invalid',
-			helper: 'clone',
-			stack: '.node',
-			appendTo: '#main',
-			zIndex: 99
-		});
-
-		_Entities.appendEditPropertiesIcon(div, user);
-		_Entities.setMouseOver(div);
-
-		return div;
-	},
-	appendUserToGroup: function (user, group, parent) {
-		var delIcon;
-		var div = Structr.node(user.id);
-		var group = user.groups[0];
-
-		var groupId = group.id;
-
-		if (!Structr.isExpanded(groupId)) {
-			return;
-		}
-
-		var newDelIcon = '<img title="Remove user \'' + user.name + '\' from group \'' + group.name + '\'" alt="Remove user ' + user.name + ' from group \'' + group.name + '\'" class="delete_icon button" src="' + _Icons.user_delete_icon + '">';
-
-		_Logger.log(_LogType.SECURTIY, 'parent, div', parent, div);
-
-		if (div && div.length) {
-			parent.append(div.css({
-				top: 0,
-				left: 0
-			}));
-			delIcon = $('.delete_icon', div);
-			delIcon.replaceWith(newDelIcon);
-
-			_Logger.log(_LogType.SECURTIY, '################ disable delete icon');
-
-		} else {
-
-			_Logger.log(_LogType.SECURTIY, '### new user, appending to ', parent);
-
-			if (parent) {
-				parent.append(_Security.getUserElementMarkup(user));
-				div = Structr.node(user.id);
-				div.append(newDelIcon);
-			} else {
-				// group is not visible
-				div = _Security.appendUserToUserList(user);
-			}
-
-		}
-		delIcon = $('.delete_icon', div);
-		delIcon.on('click', function(e) {
-			e.stopPropagation();
-			Command.removeSourceFromTarget(user.id, groupId);
-		});
-
-		// disable delete icon on parent
-		Structr.disableButton($('.delete_icon', parent)[0]);
-
-		div.removeClass('ui-state-disabled').removeClass('ui-draggable-disabled').removeClass('ui-draggable');
-
-		_Entities.appendEditPropertiesIcon(div, user);
-		_Entities.setMouseOver(div);
-
-		return div;
-	},
-	getUserElementMarkup:function (user) {
-		var name = _Security.getUserName(user);
-		return '<div id="id_' + user.id + '" class="node user">'
-			+ '<img class="typeIcon" src="' + _Icons.user_icon + '">'
-			+ ' <b title="' + name + '" class="name_">' + name + '</b> <span class="id">' + user.id + '</span>'
-			+ '</div>';
-	},
-	resize: function() {
-
-		Structr.resize();
-
-		var w = $(window).width();
-		var h = $(window).height();
-
-		var ml = 0;
-		var mt = 24;
-
-		// Calculate dimensions of dialog
-		var dw = Math.min(900, w - ml);
-		var dh = Math.min(600, h - mt);
-		//            var dw = (w-24) + 'px';
-		//            var dh = (h-24) + 'px';
-
-		var l = parseInt((w - dw) / 2);
-		var t = parseInt((h - dh) / 2);
-
-		$('#securityTabs #resourceAccess #resourceAccessesTable').css({
-			height: h - ($('#securityTabsMenu').height() + 177) + 'px',
-			width:  w - 59 + 'px'
-		});
-
-		$('#securityTabs #usersAndGroups').css({
-			height: h - ($('#securityTabsMenu').height() + 112) + 'px',
-			width:  w - 60 + 'px'
-		});
-
-		$('.searchResults').css({
-			height: h - 103 + 'px'
-		});
-	},
-	getUserName: function(user) {
-		return name = user.name ? user.name : user.eMail ? '[' + user.eMail + ']' : '[unnamed]';
 	}
+
 };

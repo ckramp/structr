@@ -531,8 +531,12 @@ public class AdvancedSearchTest extends StructrRestTest {
 		String test04 = createEntity("/test_eights", "{ name: test04, aString: string04, anInt: 4 }");
 
 		String test05 = createEntity("/test_nines", "{ name: test05, city: Dortmund, street: Strobelallee, testEightIds: [ ", test01, ",", test02, "] }");
-		String test06 = createEntity("/test_nines", "{ name: test06, city: Köln, street: Heumarkt, testEightIds: [ ", test03, ",", test04, "] }");
+		String test06 = createEntity("/test_nines", "{ name: test06, city: 'Fehlerstadt', street: 'Unbekanntstraße', testEightIds: [ ", test03, ",", test04, "] }");
 		String test07 = createEntity("/test_nines", "{ name: test07, city: München, street: Maximiliansplatz }");
+
+		RestAssured.given().filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(200)).get("/TestNine/" + test05);
+		RestAssured.given().filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(200)).get("/TestNine/" + test06);
+		RestAssured.given().filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(200)).get("/TestNine/" + test07);
 
 		// test geocoding, expected result is a list of 3 objects
 		// test05, test06 and test07
@@ -632,9 +636,14 @@ public class AdvancedSearchTest extends StructrRestTest {
 			.when()
 				.get(concat("/test_nines?distance=2&location=Poststraße,Dortmund"));
 
+
+
+
+
+
 		// test spatial search with large radius,
 		// expected result is a list of two objects:
-		// test05 and test06
+		// test05, test06 has no coordinates and should be ignored!
 		RestAssured
 
 			.given()
@@ -643,10 +652,9 @@ public class AdvancedSearchTest extends StructrRestTest {
 			.expect()
 				.statusCode(200)
 
-				.body("result",	              hasSize(2))
-				.body("result_count",         equalTo(2))
+				.body("result",	              hasSize(1))
+				.body("result_count",         equalTo(1))
 				.body("result[0].id",         equalTo(test05))
-				.body("result[1].id",         equalTo(test06))
 
 			.when()
 				.get(concat("/test_nines?distance=100&location=Bahnhofstraße,Wuppertal"));
@@ -680,16 +688,17 @@ public class AdvancedSearchTest extends StructrRestTest {
 
 			.given()
 				.contentType("application/json; charset=UTF-8")
+				.filter(ResponseLoggingFilter.logResponseIfStatusCodeIs(200))
 
 			.expect()
 				.statusCode(200)
 
 				.body("result",	              hasSize(1))
 				.body("result_count",         equalTo(1))
-				.body("result[0].id",         equalTo(test06))
+				//.body("result[0].id",         equalTo(test06))
 
 			.when()
-				.get(concat("/test_nines?distance=100&location=Bahnhofstraße,Wuppertal&postalCode="));
+				.get(concat("/test_nines?distance=100&location=Bahnhofstraße,Wuppertal"));
 	}
 
 	@Test

@@ -382,8 +382,9 @@ var _Elements = {
 		}
 
 		_Logger.log(_LogType.ELEMENTS, 'appendElementElement parent, refNode, refNodeIsParent', parent, refNode, refNodeIsParent);
-		if (!parent)
+		if (!parent) {
 			return false;
+		}
 
 		_Entities.ensureExpanded(parent);
 
@@ -1059,8 +1060,9 @@ var _Elements = {
 			parent = refNode;
 		}
 
-		if (!parent)
+		if (!parent) {
 			return false;
+		}
 
 		var isActiveNode = entity.isActiveNode();
 		var isTemplate = (entity.type === 'Template');
@@ -1190,7 +1192,7 @@ var _Elements = {
 		var div = element.append('<div class="editor"></div>');
 		_Logger.log(_LogType.CONTENTS, div);
 		var contentBox = $('.editor', element);
-		contentType = contentType ? contentType : entity.contentType;
+		contentType = entity.contentType || 'text/plain';
 		var text1, text2;
 
 		var lineWrapping = LSWrapper.getItem(lineWrappingKey);
@@ -1336,8 +1338,7 @@ var _Elements = {
 			}
 
 			Command.patch(entity.id, text1, text2, function() {
-				dialogMsg.html('<div class="infoBox success">Content saved.</div>');
-				$('.infoBox', dialogMsg).delay(2000).fadeOut(200);
+				Structr.showAndHideInfoBoxMessage('Content saved.', 'success', 2000, 200);
 				_Pages.reloadPreviews();
 				dialogSaveButton.prop("disabled", true).addClass('disabled');
 				saveAndClose.prop("disabled", true).addClass('disabled');

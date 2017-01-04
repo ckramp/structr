@@ -17,11 +17,11 @@
  * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
 var main, crawlerMain, crawlerTree, crawlerList;
-var win = $(window);
 var selectedElements = [];
 var currentSite;
 var sitePageSize = 10000, sitePage = 1;
 var currentSiteKey = 'structrCurrentSite_' + port;
+var crawlerResizerLeftKey = 'structrCrawlerResizerLeftKey_' + port;
 var link, path, elid, claz, pageFrame, frameDoc;
 var proxyUrl = '/structr/proxy';
 
@@ -65,20 +65,17 @@ var _Crawler = {
 	},
 	resize: function() {
 
-		var windowWidth = win.width();
-		var windowHeight = win.height();
+		var windowHeight = $(window).height();
 		var headerOffsetHeight = 100;
 
 		if (crawlerTree) {
 			crawlerTree.css({
-				width: Math.max(180, Math.min(windowWidth / 3, 360)) + 'px',
 				height: windowHeight - headerOffsetHeight + 'px'
 			});
 		}
 
 		if (crawlerList) {
 			crawlerList.css({
-				width: windowWidth - 400 - 64 + 'px',
 				height: windowHeight - headerOffsetHeight - 55 + 'px'
 			});
 
@@ -89,8 +86,16 @@ var _Crawler = {
 			$('#page-frame').css({height: (windowHeight - (headerOffsetHeight + pagerHeight + crawlerInputsHeight + filesTableHeight + 74)) + 'px'});
 		}
 
+		_Crawler.moveResizer();
 		Structr.resize();
 
+	},
+	moveResizer: function(left) {
+		left = left || LSWrapper.getItem(crawlerResizerLeftKey) || 300;
+		$('.column-resizer', crawlerMain).css({ left: left });
+
+		$('#crawler-tree').css({width: left - 14 + 'px'});
+		$('#crawler-list').css({left: left + 8 + 'px', width: $(window).width() - left - 58 + 'px'});
 	},
 	onload: function() {
 
@@ -101,11 +106,14 @@ var _Crawler = {
 
 		Structr.updateMainHelpLink('https://support.structr.com/knowledge-graph');
 
-		main.append('<div id="crawler-main"><div class="fit-to-height" id="crawler-tree-container"><div id="crawler-tree"></div></div><div class="fit-to-height" id="crawler-list-container"><div id="crawler-list"></div></div>');
+		main.append('<div id="crawler-main"><div class="column-resizer"></div><div class="fit-to-height" id="crawler-tree-container"><div id="crawler-tree"></div></div><div class="fit-to-height" id="crawler-list-container"><div id="crawler-list"></div></div>');
 		crawlerMain = $('#crawler-main');
 
 		crawlerTree = $('#crawler-tree');
 		crawlerList = $('#crawler-list');
+
+		_Crawler.moveResizer();
+		Structr.initVerticalSlider($('.column-resizer', crawlerMain), crawlerResizerLeftKey, 204, _Crawler.moveResizer);
 
 		$('#crawler-list-container').prepend('<button class="add_site_icon button"><img title="Add Site" alt="Add Site" src="' + _Icons.add_site_icon + '"> Add Site</button>');
 
@@ -154,8 +162,7 @@ var _Crawler = {
 
 		_TreeHelper.initTree(crawlerTree, _Crawler.treeInitFunction, 'structr-ui-crawler');
 
-		win.off('resize');
-		win.resize(function() {
+		$(window).off('resize').resize(function() {
 			_Crawler.resize();
 		});
 
