@@ -1,0 +1,162 @@
+/**
+ * Copyright (C) 2010-2017 Structr GmbH
+ *
+ * This file is part of Structr <http://structr.org>.
+ *
+ * Structr is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option) any later
+ * version.
+ *
+ * Structr is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * Structr. If not, see <http://www.gnu.org/licenses/>.
+ */
+package org.structr.mqtt.entity;
+
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.structr.common.PropertyView;
+import org.structr.common.SecurityContext;
+import org.structr.common.View;
+import org.structr.common.error.ErrorBuffer;
+import org.structr.common.error.FrameworkException;
+import static org.structr.core.GraphObject.createdBy;
+import static org.structr.core.GraphObject.createdDate;
+import static org.structr.core.GraphObject.id;
+import static org.structr.core.GraphObject.lastModifiedDate;
+import static org.structr.core.GraphObject.type;
+import static org.structr.core.GraphObject.visibilityEndDate;
+import static org.structr.core.GraphObject.visibilityStartDate;
+import static org.structr.core.GraphObject.visibleToAuthenticatedUsers;
+import static org.structr.core.GraphObject.visibleToPublicUsers;
+import org.structr.core.entity.AbstractNode;
+import org.structr.core.graph.ModificationQueue;
+import static org.structr.core.graph.NodeInterface.deleted;
+import static org.structr.core.graph.NodeInterface.hidden;
+import static org.structr.core.graph.NodeInterface.name;
+import static org.structr.core.graph.NodeInterface.owner;
+import org.structr.core.property.BooleanProperty;
+import org.structr.core.property.EndNodes;
+import org.structr.core.property.IntProperty;
+import org.structr.core.property.Property;
+import org.structr.core.property.PropertyMap;
+import org.structr.core.property.StartNodes;
+import org.structr.core.property.StringProperty;
+import org.structr.mqtt.MQTTClientConnection;
+import org.structr.mqtt.MQTTContext;
+import org.structr.mqtt.MQTTInfo;
+import org.structr.mqtt.entity.relation.MQTTPublishers;
+import org.structr.mqtt.entity.relation.MQTTSubscribers;
+import org.structr.schema.SchemaService;
+
+public class MQTTClient extends AbstractNode implements MQTTInfo{
+
+	private static final Logger logger = LoggerFactory.getLogger(MQTTClient.class.getName());
+
+	public static final Property<List<MQTTPublisher>>	publishers			= new StartNodes<>("publishers", MQTTPublishers.class);
+	public static final Property<List<MQTTSubcriber>>	subscribers			= new EndNodes<>("subscribers", MQTTSubscribers.class);
+	public static final Property<String>				protocol				= new StringProperty("protocol");
+	public static final Property<String>				url					= new StringProperty("url");
+	public static final Property<Integer>				port				= new IntProperty("port");
+	public static final Property<Integer>				qos					= new IntProperty("qos");
+	public static final Property<Boolean>				isEnabled			= new BooleanProperty("isEnabled");
+	public static final Property<Boolean>				isConnected			= new BooleanProperty("isConnected");
+
+	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, publishers, subscribers, protocol, url, port, qos, isEnabled, isConnected);
+
+	public static final View uiView = new View(MQTTClient.class, PropertyView.Ui,
+		id, name, owner, type, createdBy, deleted, hidden, createdDate, lastModifiedDate, visibleToPublicUsers, visibleToAuthenticatedUsers, visibilityStartDate, visibilityEndDate,
+        publishers, subscribers, protocol, url, port, qos, isEnabled, isConnected
+	);
+
+	static {
+
+		SchemaService.registerBuiltinTypeOverride("MQTTBroker", MQTTClient.class.getName());
+	}
+
+	@Override
+	public boolean onCreation(final SecurityContext securityContext, final ErrorBuffer errorBuffer) throws FrameworkException {
+
+		if (getProperty(isEnabled)) {
+
+		}
+
+		return super.onCreation(securityContext, errorBuffer);
+	}
+
+	@Override
+	public boolean onModification(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
+
+		MQTTClientConnection connection = MQTTContext.getClientForId(getUuid());
+		boolean enabled                 = getProperty(isEnabled);
+		if (!enabled) {
+
+			if (connection != null && connection.isConnected()) {
+				connection.disconnect();
+			}
+
+		} else {
+
+			if (connection == null || !connection.isConnected()) {
+				MQTTContext.connect(this);
+			}
+
+			connection = MQTTContext.getClientForId(getUuid());
+			if (connection != null) {
+
+				if (connection.isConnected()) {
+
+					setProperty(isConnected, true);
+
+				} else {
+
+					setProperty(isConnected, false);
+				}
+			}
+		}
+
+		return super.onModification(securityContext, errorBuffer, modificationQueue);
+	}
+
+	@Override
+	public boolean onDeletion(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final PropertyMap properties) throws FrameworkException {
+
+		final String uuid = properties.get(id);
+		if (uuid != null) {
+
+			final MQTTClientConnection connection = MQTTContext.getClientForId(uuid);
+			if (connection != null) {
+
+				connection.disconnect();
+			}
+		}
+
+		return super.onDeletion(securityContext, errorBuffer, properties);
+	}
+
+	@Override
+	public String getProtocol() {
+		return getProperty(MQTTClient.protocol);
+	}
+
+	@Override
+	public String getUrl() {
+		return getProperty(MQTTClient.url);
+	}
+
+	@Override
+	public int getPort() {
+		return getProperty(MQTTClient.port);
+	}
+
+	@Override
+	public int getQoS() {
+		return getProperty(MQTTClient.qos);
+	}
+
+}

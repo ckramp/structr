@@ -32,6 +32,7 @@
         <module>structr-peer-to-peer-module</module>
         <module>structr-payment-module</module>
         <module>structr-crawler-module</module>
+		<module>structr-mqtt-module</module>
     </modules>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

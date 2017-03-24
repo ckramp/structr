@@ -18,7 +18,6 @@
  */
 package org.structr.web.entity.feed;
 
-import com.rometools.fetcher.FetcherException;
 import com.rometools.rome.feed.synd.SyndContent;
 import com.rometools.rome.feed.synd.SyndEnclosure;
 import com.rometools.rome.feed.synd.SyndEntry;
@@ -76,10 +75,10 @@ public class DataFeed extends AbstractNode {
                 url, items, feedType, description, lastUpdated, maxAge, maxItems, updateInterval
 	);
 
-        static {
+	static {
 
-            SchemaService.registerBuiltinTypeOverride("DataFeed", DataFeed.class.getName());
-        }
+		SchemaService.registerBuiltinTypeOverride("DataFeed", DataFeed.class.getName());
+	}
 
 
 	@Override
