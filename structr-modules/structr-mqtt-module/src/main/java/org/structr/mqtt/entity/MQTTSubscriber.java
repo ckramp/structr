@@ -18,10 +18,16 @@
  */
 package org.structr.mqtt.entity;
 
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.cxf.common.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.common.PropertyView;
+import org.structr.common.SecurityContext;
 import org.structr.common.View;
+import org.structr.common.error.ErrorBuffer;
+import org.structr.common.error.FrameworkException;
 import static org.structr.core.GraphObject.createdBy;
 import static org.structr.core.GraphObject.createdDate;
 import static org.structr.core.GraphObject.id;
@@ -32,35 +38,59 @@ import static org.structr.core.GraphObject.visibilityStartDate;
 import static org.structr.core.GraphObject.visibleToAuthenticatedUsers;
 import static org.structr.core.GraphObject.visibleToPublicUsers;
 import org.structr.core.entity.AbstractNode;
+import org.structr.core.graph.ModificationQueue;
 import static org.structr.core.graph.NodeInterface.deleted;
 import static org.structr.core.graph.NodeInterface.hidden;
 import static org.structr.core.graph.NodeInterface.name;
 import static org.structr.core.graph.NodeInterface.owner;
-import org.structr.core.property.EndNode;
-import org.structr.core.property.FunctionProperty;
 import org.structr.core.property.Property;
+import org.structr.core.property.StartNode;
 import org.structr.core.property.StringProperty;
-import org.structr.mqtt.entity.relation.MQTTPublishers;
+import org.structr.mqtt.entity.relation.MQTTSubscribers;
 import org.structr.schema.SchemaService;
 
-public class MQTTPublisher extends AbstractNode {
+public class MQTTSubscriber extends AbstractNode {
 
-	private static final Logger logger = LoggerFactory.getLogger(MQTTPublisher.class.getName());
+	private static final Logger logger = LoggerFactory.getLogger(MQTTSubscriber.class.getName());
 
-	public static final Property<MQTTClient>		client			= new EndNode<>("client", MQTTPublishers.class);
+	public static final Property<MQTTClient>		client			= new StartNode<>("client", MQTTSubscribers.class);
 	public static final Property<String>			topic			= new StringProperty("topic");
-	public static final Property<String>            message	        = new FunctionProperty("message").writeFunction("{var self = Structr.get('this'); self.client.sendMessage(self.topic, Structr.get('value'))}").readFunction("");
 
-	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, client, topic, message);
+	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, client, topic);
 
 	public static final View uiView = new View(MQTTClient.class, PropertyView.Ui,
 		id, name, owner, type, createdBy, deleted, hidden, createdDate, lastModifiedDate, visibleToPublicUsers, visibleToAuthenticatedUsers, visibilityStartDate, visibilityEndDate,
-        client, topic, message
+        client, topic
 	);
 
 	static {
 
-		SchemaService.registerBuiltinTypeOverride("MQTTPublisher", MQTTPublisher.class.getName());
+		SchemaService.registerBuiltinTypeOverride("MQTTSubscriber", MQTTSubscriber.class.getName());
+	}
+
+	@Override
+	public boolean onCreation(final SecurityContext securityContext, final ErrorBuffer errorBuffer) throws FrameworkException {
+
+		if(!StringUtils.isEmpty(getProperty(topic)) && (client != null)) {
+			Map<String,Object> params = new HashMap<>();
+			params.put("topic", getProperty(topic));
+			getProperty(client).invokeMethod("subscribeTopic", params, false);
+		}
+
+		return super.onCreation(securityContext, errorBuffer);
+	}
+
+	@Override
+	public boolean onModification(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
+
+		if(!StringUtils.isEmpty(getProperty(topic)) && (client != null)) {
+			Map<String,Object> params = new HashMap<>();
+			params.put("topic", getProperty(topic));
+			getProperty(client).invokeMethod("subscribeTopic", params, false);
+		}
+
+
+		return super.onModification(securityContext, errorBuffer, modificationQueue);
 	}
 
 }

@@ -3,55 +3,149 @@
  *
  * This file is part of Structr <http://structr.org>.
  *
- * Structr is free software: you can redistribute it and/or modify it under the
- * terms of the GNU General Public License as published by the Free Software
- * Foundation, either version 3 of the License, or (at your option) any later
- * version.
+ * Structr is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
  *
- * Structr is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ * Structr is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * Structr. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Structr.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.structr.mqtt;
 
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.structr.common.error.FrameworkException;
 
-public class MQTTClientConnection {
+public class MQTTClientConnection implements MqttCallback {
 	private MemoryPersistence persistence = new MemoryPersistence();
 	private MqttConnectOptions connOpts;
 	private MqttClient client;
-	private int qos = 0;
+	private MQTTInfo info;
 
-	public MQTTClientConnection(String broker, String clientId, int qos) throws MqttException{
-		client = new MqttClient(broker, clientId, persistence);
+	private static final Logger	logger = LoggerFactory.getLogger(MQTTClientConnection.class.getName());
+
+	public MQTTClientConnection(MQTTInfo info) throws MqttException{
+
+		this.info = info;
+		String broker = info.getProtocol() + info.getUrl() + ":" + info.getPort();
+		client = new MqttClient(broker, info.getUuid(), persistence);
+		client.setCallback(this);
 		connOpts = new MqttConnectOptions();
 		connOpts.setCleanSession(true);
-		this.qos = qos;
 	}
 
-	public void connect() throws MqttException{
+	public void connect() throws FrameworkException {
 
-		if(!client.isConnected()){
-			client.connect(connOpts);
+		try{
+
+			if(!client.isConnected()){
+
+				client.connect(connOpts);
+			}
+		} catch (MqttException ex) {
+
+			throw new FrameworkException(422, "Could not connect to MQTT broker.");
 		}
 	}
 
-	public void disconnect() throws MqttException{
+	public void disconnect() throws FrameworkException {
 
-		if(client.isConnected()){
-			client.disconnect();
+		try{
+
+			if(client.isConnected()){
+
+				client.disconnect();
+			}
+		} catch (MqttException ex) {
+
+			throw new FrameworkException(422, "Error while disconnecting from MQTT broker.");
 		}
 	}
 
 	public boolean isConnected(){
-		
+
 		return client.isConnected();
+	}
+
+	public void sendMessage(String topic, String message) throws FrameworkException {
+
+		try{
+
+			if(client.isConnected()){
+
+				MqttMessage msg = new MqttMessage(message.getBytes());
+				msg.setQos(info.getQoS());
+				client.publish(topic, msg);
+			}
+		} catch (MqttException ex) {
+
+			throw new FrameworkException(422, "Error while sending message.");
+		}
+
+	}
+
+	public void subscribeTopic(String topic) throws FrameworkException {
+
+		try{
+
+			if(client.isConnected()){
+
+				client.subscribe(topic, info.getQoS());
+			}
+		} catch (MqttException ex) {
+
+			throw new FrameworkException(422, "Error while subscribing to topic.");
+		}
+
+	}
+
+	public void unsubscribeTopic(String topic) throws FrameworkException {
+
+		try{
+
+		if(client.isConnected()){
+
+			client.unsubscribe(topic);
+		}
+
+		} catch (MqttException ex) {
+
+			throw new FrameworkException(422, "Error while unsubscribing from topic.");
+		}
+
+	}
+
+	@Override
+	public void messageArrived(String topic, MqttMessage msg) throws Exception {
+
+		info.messageCallback(topic, msg.toString());
+	}
+
+	@Override
+	public void connectionLost(Throwable cause) {
+		try{
+			connect();
+			MQTTContext.subscribeAllTopics(info);
+		} catch (FrameworkException ex) {
+			logger.error("Could not reconnect to MQTT broker.");
+		}
+	}
+
+	@Override
+	public void deliveryComplete(IMqttDeliveryToken token) {
 	}
 
 }

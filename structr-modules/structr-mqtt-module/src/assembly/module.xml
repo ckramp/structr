@@ -42,6 +42,7 @@
 			<unpack>true</unpack>
 			<includes>
 				<include>org.eclipse.paho:org.eclipse.paho.client.mqttv3</include>
+			</includes>
 		</dependencySet>
 	</dependencySets>
 </assembly>
