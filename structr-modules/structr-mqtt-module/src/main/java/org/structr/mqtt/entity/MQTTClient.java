@@ -106,6 +106,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 		if (!enabled) {
 
 			if (connection != null && connection.isConnected()) {
+
 				connection.disconnect();
 				setProperty(isConnected, false);
 			}
@@ -113,7 +114,9 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 		} else {
 
 			if (connection == null || !connection.isConnected()) {
+
 				MQTTContext.connect(this);
+				MQTTContext.subscribeAllTopics(this);
 			}
 
 			connection = MQTTContext.getClientForId(getUuid());
@@ -122,7 +125,6 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 				if (connection.isConnected()) {
 
 					setProperty(isConnected, true);
-
 				} else {
 
 					setProperty(isConnected, false);
@@ -206,6 +208,21 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 	}
 
 	@Override
+	public void connectionStatusCallback(boolean connected) {
+
+		final App app = StructrApp.getInstance();
+		try(final Tx tx = app.tx()) {
+
+			setProperty(isConnected, connected);
+			tx.success();
+		} catch (FrameworkException ex) {
+
+			logger.warn("Error in connection status callback for MQTTClient.");
+		}
+
+	}
+
+	@Override
 	public String[] getTopics() {
 
 		final App app = StructrApp.getInstance();
@@ -221,6 +238,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 
 			return topics;
 		} catch (FrameworkException ex ) {
+			
 			logger.error("Couldn't retrieve client topics for MQTT subscription.");
 			return null;
 		}

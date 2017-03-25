@@ -84,9 +84,13 @@ public class MQTTSubscriber extends AbstractNode {
 	public boolean onModification(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
 
 		if(!StringUtils.isEmpty(getProperty(topic)) && (client != null)) {
-			Map<String,Object> params = new HashMap<>();
-			params.put("topic", getProperty(topic));
-			getProperty(client).invokeMethod("subscribeTopic", params, false);
+			
+			if(modificationQueue.isPropertyModified(topic)){
+
+				Map<String,Object> params = new HashMap<>();
+				params.put("topic", getProperty(topic));
+				getProperty(client).invokeMethod("subscribeTopic", params, false);
+			}
 		}
 
 

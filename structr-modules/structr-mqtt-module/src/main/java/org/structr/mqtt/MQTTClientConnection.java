@@ -54,6 +54,7 @@ public class MQTTClientConnection implements MqttCallback {
 			if(!client.isConnected()){
 
 				client.connect(connOpts);
+				info.connectionStatusCallback(true);
 			}
 		} catch (MqttException ex) {
 
@@ -68,6 +69,7 @@ public class MQTTClientConnection implements MqttCallback {
 			if(client.isConnected()){
 
 				client.disconnect();
+				info.connectionStatusCallback(false);
 			}
 		} catch (MqttException ex) {
 
@@ -137,6 +139,8 @@ public class MQTTClientConnection implements MqttCallback {
 	@Override
 	public void connectionLost(Throwable cause) {
 		try{
+
+			info.connectionStatusCallback(false);
 			connect();
 			MQTTContext.subscribeAllTopics(info);
 		} catch (FrameworkException ex) {

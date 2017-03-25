@@ -29,4 +29,5 @@ public interface MQTTInfo {
 	public String[] getTopics();
 
 	public void messageCallback(String topic, String message);
+	public void connectionStatusCallback(boolean connected);
 }

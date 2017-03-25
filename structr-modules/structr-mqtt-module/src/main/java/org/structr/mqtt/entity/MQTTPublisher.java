@@ -49,7 +49,7 @@ public class MQTTPublisher extends AbstractNode {
 
 	public static final Property<MQTTClient>		client			= new EndNode<>("client", MQTTPublishers.class);
 	public static final Property<String>			topic			= new StringProperty("topic");
-	public static final Property<String>            message	        = new FunctionProperty("message").writeFunction("{var self = Structr.get('this'); self.client.sendMessage(self.topic, Structr.get('value'))}").readFunction("");
+	public static final Property<String>            message	        = new FunctionProperty("message").writeFunction("{var self = Structr.get('this'); if(!Structr.empty(self.client)){self.client.sendMessage(self.topic, Structr.get('value'))}}").readFunction("");
 
 	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, client, topic, message);
 

@@ -53,6 +53,7 @@ public abstract class MQTTContext {
 
 						// enable clients on startup
 						if (client.getProperty(MQTTClient.isEnabled)) {
+
 							MQTTContext.connect(client);
 							MQTTContext.subscribeAllTopics(client);
 						}
