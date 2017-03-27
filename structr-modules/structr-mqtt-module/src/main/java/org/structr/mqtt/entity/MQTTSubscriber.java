@@ -28,6 +28,7 @@ import org.structr.common.SecurityContext;
 import org.structr.common.View;
 import org.structr.common.error.ErrorBuffer;
 import org.structr.common.error.FrameworkException;
+import org.structr.core.Export;
 import static org.structr.core.GraphObject.createdBy;
 import static org.structr.core.GraphObject.createdDate;
 import static org.structr.core.GraphObject.id;
@@ -46,8 +47,11 @@ import static org.structr.core.graph.NodeInterface.owner;
 import org.structr.core.property.Property;
 import org.structr.core.property.StartNode;
 import org.structr.core.property.StringProperty;
+import org.structr.core.script.Scripting;
 import org.structr.mqtt.entity.relation.MQTTSubscribers;
+import org.structr.rest.RestMethodResult;
 import org.structr.schema.SchemaService;
+import org.structr.schema.action.ActionContext;
 
 public class MQTTSubscriber extends AbstractNode {
 
@@ -55,12 +59,13 @@ public class MQTTSubscriber extends AbstractNode {
 
 	public static final Property<MQTTClient>		client			= new StartNode<>("client", MQTTSubscribers.class);
 	public static final Property<String>			topic			= new StringProperty("topic");
+	public static final Property<String>			source			= new StringProperty("source");
 
-	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, client, topic);
+	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, client, topic, source);
 
 	public static final View uiView = new View(MQTTClient.class, PropertyView.Ui,
 		id, name, owner, type, createdBy, deleted, hidden, createdDate, lastModifiedDate, visibleToPublicUsers, visibleToAuthenticatedUsers, visibilityStartDate, visibilityEndDate,
-        client, topic
+        client, topic, source
 	);
 
 	static {
@@ -95,6 +100,23 @@ public class MQTTSubscriber extends AbstractNode {
 
 
 		return super.onModification(securityContext, errorBuffer, modificationQueue);
+	}
+
+	@Export
+	public RestMethodResult onMessage(final String topic, final String message) throws FrameworkException {
+
+		if (!StringUtils.isEmpty(getProperty(source))) {
+
+			String script = "${" + getProperty(source) + "}";
+
+			Map<String, Object> params = new HashMap<>();
+			params.put("topic", topic);
+			params.put("message", message);
+			ActionContext ac = new ActionContext(securityContext, params);
+			Scripting.replaceVariables(ac, this, script);
+		}
+
+		return new RestMethodResult(200);
 	}
 
 }
