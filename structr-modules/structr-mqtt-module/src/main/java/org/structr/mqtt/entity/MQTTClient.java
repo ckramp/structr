@@ -68,10 +68,10 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 
 	public static final Property<List<MQTTPublisher>>	publishers			= new StartNodes<>("publishers", MQTTPublishers.class);
 	public static final Property<List<MQTTSubscriber>>	subscribers			= new EndNodes<>("subscribers", MQTTSubscribers.class);
-	public static final Property<String>				protocol				= new StringProperty("protocol");
+	public static final Property<String>				protocol				= new StringProperty("protocol").defaultValue("tcp://");
 	public static final Property<String>				url					= new StringProperty("url");
 	public static final Property<Integer>				port				= new IntProperty("port");
-	public static final Property<Integer>				qos					= new IntProperty("qos");
+	public static final Property<Integer>				qos					= new IntProperty("qos").defaultValue(0);
 	public static final Property<Boolean>				isEnabled			= new BooleanProperty("isEnabled");
 	public static final Property<Boolean>				isConnected			= new BooleanProperty("isConnected");
 
@@ -238,7 +238,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 
 			return topics;
 		} catch (FrameworkException ex ) {
-			
+
 			logger.error("Couldn't retrieve client topics for MQTT subscription.");
 			return null;
 		}

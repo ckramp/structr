@@ -71,7 +71,7 @@ public class MQTTSubscriber extends AbstractNode {
 	@Override
 	public boolean onCreation(final SecurityContext securityContext, final ErrorBuffer errorBuffer) throws FrameworkException {
 
-		if(!StringUtils.isEmpty(getProperty(topic)) && (client != null)) {
+		if(!StringUtils.isEmpty(getProperty(topic)) && (getProperty(client) != null) && getProperty(client).getProperty(MQTTClient.isConnected)) {
 			Map<String,Object> params = new HashMap<>();
 			params.put("topic", getProperty(topic));
 			getProperty(client).invokeMethod("subscribeTopic", params, false);
@@ -83,8 +83,8 @@ public class MQTTSubscriber extends AbstractNode {
 	@Override
 	public boolean onModification(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
 
-		if(!StringUtils.isEmpty(getProperty(topic)) && (client != null)) {
-			
+		if(!StringUtils.isEmpty(getProperty(topic)) && (getProperty(client) != null) && getProperty(client).getProperty(MQTTClient.isConnected)) {
+
 			if(modificationQueue.isPropertyModified(topic)){
 
 				Map<String,Object> params = new HashMap<>();
