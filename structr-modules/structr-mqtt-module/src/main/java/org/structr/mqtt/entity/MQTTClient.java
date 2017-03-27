@@ -52,13 +52,11 @@ import org.structr.core.property.EndNodes;
 import org.structr.core.property.IntProperty;
 import org.structr.core.property.Property;
 import org.structr.core.property.PropertyMap;
-import org.structr.core.property.StartNodes;
 import org.structr.core.property.StringProperty;
 import org.structr.mqtt.MQTTClientConnection;
 import org.structr.mqtt.MQTTContext;
 import org.structr.mqtt.MQTTInfo;
-import org.structr.mqtt.entity.relation.MQTTPublishers;
-import org.structr.mqtt.entity.relation.MQTTSubscribers;
+import org.structr.mqtt.entity.relation.MQTTClientHAS_SUBSCRIBERMQTTSubscriber;
 import org.structr.rest.RestMethodResult;
 import org.structr.schema.SchemaService;
 
@@ -66,8 +64,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 
 	private static final Logger logger = LoggerFactory.getLogger(MQTTClient.class.getName());
 
-	public static final Property<List<MQTTPublisher>>	publishers			= new StartNodes<>("publishers", MQTTPublishers.class);
-	public static final Property<List<MQTTSubscriber>>	subscribers			= new EndNodes<>("subscribers", MQTTSubscribers.class);
+	public static final Property<List<MQTTSubscriber>>	subscribers			= new EndNodes<>("subscribers", MQTTClientHAS_SUBSCRIBERMQTTSubscriber.class);
 	public static final Property<String>				protocol				= new StringProperty("protocol").defaultValue("tcp://");
 	public static final Property<String>				url					= new StringProperty("url");
 	public static final Property<Integer>				port				= new IntProperty("port");
@@ -75,11 +72,11 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 	public static final Property<Boolean>				isEnabled			= new BooleanProperty("isEnabled");
 	public static final Property<Boolean>				isConnected			= new BooleanProperty("isConnected");
 
-	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, publishers, subscribers, protocol, url, port, qos, isEnabled, isConnected);
+	public static final View defaultView = new View(MQTTClient.class, PropertyView.Public, id, type, subscribers, protocol, url, port, qos, isEnabled, isConnected);
 
 	public static final View uiView = new View(MQTTClient.class, PropertyView.Ui,
 		id, name, owner, type, createdBy, deleted, hidden, createdDate, lastModifiedDate, visibleToPublicUsers, visibleToAuthenticatedUsers, visibilityStartDate, visibilityEndDate,
-        publishers, subscribers, protocol, url, port, qos, isEnabled, isConnected
+        subscribers, protocol, url, port, qos, isEnabled, isConnected
 	);
 
 	static {
@@ -108,7 +105,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 			if (connection != null && connection.isConnected()) {
 
 				connection.disconnect();
-				setProperty(isConnected, false);
+				setProperties(securityContext, new PropertyMap(isConnected, false));
 			}
 
 		} else {
@@ -124,10 +121,11 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 
 				if (connection.isConnected()) {
 
-					setProperty(isConnected, true);
+					MQTTContext.subscribeAllTopics(this);
+					setProperties(securityContext, new PropertyMap(isConnected, true));
 				} else {
 
-					setProperty(isConnected, false);
+					setProperties(securityContext, new PropertyMap(isConnected, false));
 				}
 			}
 		}
@@ -213,7 +211,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 		final App app = StructrApp.getInstance();
 		try(final Tx tx = app.tx()) {
 
-			setProperty(isConnected, connected);
+			setProperties(securityContext, new PropertyMap(isConnected, connected));
 			tx.success();
 		} catch (FrameworkException ex) {
 

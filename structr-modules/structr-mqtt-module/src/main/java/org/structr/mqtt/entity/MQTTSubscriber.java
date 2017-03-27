@@ -48,7 +48,7 @@ import org.structr.core.property.Property;
 import org.structr.core.property.StartNode;
 import org.structr.core.property.StringProperty;
 import org.structr.core.script.Scripting;
-import org.structr.mqtt.entity.relation.MQTTSubscribers;
+import org.structr.mqtt.entity.relation.MQTTClientHAS_SUBSCRIBERMQTTSubscriber;
 import org.structr.rest.RestMethodResult;
 import org.structr.schema.SchemaService;
 import org.structr.schema.action.ActionContext;
@@ -57,7 +57,7 @@ public class MQTTSubscriber extends AbstractNode {
 
 	private static final Logger logger = LoggerFactory.getLogger(MQTTSubscriber.class.getName());
 
-	public static final Property<MQTTClient>		client			= new StartNode<>("client", MQTTSubscribers.class);
+	public static final Property<MQTTClient>		client			= new StartNode<>("client", MQTTClientHAS_SUBSCRIBERMQTTSubscriber.class);
 	public static final Property<String>			topic			= new StringProperty("topic");
 	public static final Property<String>			source			= new StringProperty("source");
 

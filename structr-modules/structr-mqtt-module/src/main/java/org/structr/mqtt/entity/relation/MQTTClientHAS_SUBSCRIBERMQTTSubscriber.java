@@ -18,30 +18,31 @@
  */
 package org.structr.mqtt.entity.relation;
 
-import org.structr.core.entity.ManyToOne;
+import org.structr.core.entity.OneToMany;
 import org.structr.core.entity.Relation;
 import org.structr.mqtt.entity.MQTTClient;
-import org.structr.mqtt.entity.MQTTPublisher;
+import org.structr.mqtt.entity.MQTTSubscriber;
 
-public class MQTTPublishers extends ManyToOne<MQTTPublisher, MQTTClient> {
-
-	@Override
-	public Class<MQTTPublisher> getSourceType() {
-		return MQTTPublisher.class;
-	}
+public class MQTTClientHAS_SUBSCRIBERMQTTSubscriber extends OneToMany<MQTTClient, MQTTSubscriber>{
 
 	@Override
-	public Class<MQTTClient> getTargetType() {
+	public Class<MQTTClient> getSourceType() {
 		return MQTTClient.class;
 	}
 
 	@Override
+	public Class<MQTTSubscriber> getTargetType() {
+		return MQTTSubscriber.class;
+	}
+
+	@Override
 	public String name() {
-		return "PUBLISHES_TO";
+		return "HAS_SUBSCRIBER";
 	}
 
 	@Override
 	public int getCascadingDeleteFlag() {
 		return Relation.NONE;
 	}
+
 }

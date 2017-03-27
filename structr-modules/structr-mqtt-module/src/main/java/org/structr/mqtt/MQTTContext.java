@@ -20,6 +20,7 @@ package org.structr.mqtt;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.cxf.common.util.StringUtils;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ import org.structr.core.Services;
 import org.structr.core.app.App;
 import org.structr.core.app.StructrApp;
 import org.structr.core.graph.Tx;
+import org.structr.core.property.PropertyMap;
 import org.structr.mqtt.entity.MQTTClient;
 
 public abstract class MQTTContext {
@@ -49,7 +51,7 @@ public abstract class MQTTContext {
 
 					for (final MQTTClient client : app.nodeQuery(MQTTClient.class).getAsList()) {
 
-						client.setProperty(MQTTClient.isConnected, false);
+						client.setProperties(client.getSecurityContext(), new PropertyMap(MQTTClient.isConnected, false));
 
 						// enable clients on startup
 						if (client.getProperty(MQTTClient.isEnabled)) {
@@ -103,8 +105,10 @@ public abstract class MQTTContext {
 		MQTTClientConnection con = getClientForId(info.getUuid());
 
 		for(String topic : info.getTopics()) {
+			if(!StringUtils.isEmpty(topic)){
 
-			con.subscribeTopic(topic);
+				con.subscribeTopic(topic);
+			}
 		}
 
 	}
