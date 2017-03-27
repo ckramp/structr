@@ -21,6 +21,7 @@ package org.structr.mqtt.entity;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.cxf.common.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.common.PropertyView;
@@ -104,7 +105,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 
 			if (connection != null && connection.isConnected()) {
 
-				connection.disconnect();
+				MQTTContext.disconnect(this);
 				setProperties(securityContext, new PropertyMap(isConnected, false));
 			}
 
@@ -113,7 +114,6 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 			if (connection == null || !connection.isConnected()) {
 
 				MQTTContext.connect(this);
-				MQTTContext.subscribeAllTopics(this);
 			}
 
 			connection = MQTTContext.getClientForId(getUuid());
@@ -121,7 +121,6 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 
 				if (connection.isConnected()) {
 
-					MQTTContext.subscribeAllTopics(this);
 					setProperties(securityContext, new PropertyMap(isConnected, true));
 				} else {
 
@@ -181,7 +180,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 			for(MQTTSubscriber sub : subs) {
 
 				String subTopic = sub.getProperty(MQTTSubscriber.topic);
-				if(subTopic.equals(topic)) {
+				if(!StringUtils.isEmpty(subTopic) && subTopic.equals(topic)) {
 
 					Map<String,Object> params = new HashMap<>();
 					params.put("topic", topic);

@@ -74,6 +74,17 @@ public abstract class MQTTContext {
 		return connections.get(id);
 	}
 
+	public static void disconnect(MQTTInfo info) throws FrameworkException {
+
+		MQTTClientConnection con = getClientForId(info.getUuid());
+
+		if(con != null){
+
+			con.disconnect();
+			connections.remove(info.getUuid());
+		}
+	}
+
 	public static void connect(MQTTInfo info) throws FrameworkException {
 
 		try {
