@@ -88,7 +88,7 @@ public class MQTTPublishFunction extends Function<Object, Object> {
 		public void run() {
 
 			try {
-				
+
 				client.sendMessage(topic, message);
 			} catch (FrameworkException ex) {
 

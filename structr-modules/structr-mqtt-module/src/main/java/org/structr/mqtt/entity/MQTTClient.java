@@ -99,7 +99,12 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 	@Override
 	public boolean onModification(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
 
-		if(modificationQueue.isPropertyModified(isEnabled)){
+		if (modificationQueue.isPropertyModified(protocol) || modificationQueue.isPropertyModified(url) || modificationQueue.isPropertyModified(port)) {
+
+			MQTTContext.disconnect(this);
+		}
+
+		if(modificationQueue.isPropertyModified(isEnabled) || modificationQueue.isPropertyModified(protocol) || modificationQueue.isPropertyModified(url) || modificationQueue.isPropertyModified(port)){
 
 			MQTTClientConnection connection = MQTTContext.getClientForId(getUuid());
 			boolean enabled                 = getProperty(isEnabled);
@@ -116,6 +121,7 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 				if (connection == null || !connection.isConnected()) {
 
 					MQTTContext.connect(this);
+					MQTTContext.subscribeAllTopics(this);
 				}
 
 				connection = MQTTContext.getClientForId(getUuid());
@@ -183,18 +189,21 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 			for(MQTTSubscriber sub : subs) {
 
 				String subTopic = sub.getProperty(MQTTSubscriber.topic);
-				if(!StringUtils.isEmpty(subTopic) && subTopic.equals(topic)) {
+				if(!StringUtils.isEmpty(subTopic)) {
 
-					Map<String,Object> params = new HashMap<>();
-					params.put("topic", topic);
-					params.put("message", message);
+					if(subTopic.equals(topic)){
 
-					try {
+						Map<String,Object> params = new HashMap<>();
+						params.put("topic", topic);
+						params.put("message", message);
 
-						sub.invokeMethod("onMessage", params, false);
-					} catch (FrameworkException ex) {
+						try {
 
-						logger.warn("Error while calling onMessage callback for MQTT subscriber.");
+							sub.invokeMethod("onMessage", params, false);
+						} catch (FrameworkException ex) {
+
+							logger.warn("Error while calling onMessage callback for MQTT subscriber.");
+						}
 					}
 				}
 			}

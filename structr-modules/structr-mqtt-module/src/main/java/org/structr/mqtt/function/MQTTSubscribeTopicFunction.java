@@ -83,7 +83,7 @@ public class MQTTSubscribeTopicFunction extends Function<Object, Object> {
 		public void run() {
 
 			try {
-				
+
 				client.subscribeTopic(topic);
 			} catch (FrameworkException ex) {
 

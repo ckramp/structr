@@ -144,6 +144,15 @@ public class MQTTClientConnection implements MqttCallback {
 			connect();
 			MQTTContext.subscribeAllTopics(info);
 		} catch (FrameworkException ex) {
+
+			try {
+
+				logger.warn("Removing faulty connection from MQTTContext.");
+				MQTTContext.disconnect(info);
+			} catch (FrameworkException ex1) {
+
+				logger.error("Could not remove connection from MQTTContext.");
+			}
 			logger.error("Could not reconnect to MQTT broker.");
 		}
 	}
