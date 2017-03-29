@@ -43,7 +43,8 @@ public class MQTTSubscribeTopicFunction extends Function<Object, Object> {
 				return "";
 			}
 
-			client.subscribeTopic(sources[1].toString());
+			SubscribeTopicThread worker = new SubscribeTopicThread(client, sources[1].toString());
+			new Thread(worker).start();
 
 		} else {
 
@@ -66,6 +67,30 @@ public class MQTTSubscribeTopicFunction extends Function<Object, Object> {
 	@Override
 	public String getName() {
 		return "mqtt_subscribe";
+	}
+
+	private class SubscribeTopicThread implements Runnable {
+		final MQTTClient client;
+		final String topic;
+
+		public SubscribeTopicThread(final MQTTClient client, final String topic){
+
+			this.client = client;
+			this.topic = topic;
+		}
+
+		@Override
+		public void run() {
+
+			try {
+				
+				client.subscribeTopic(topic);
+			} catch (FrameworkException ex) {
+
+				logger.error("Could not execute mqtt_subscribe() function.");
+			}
+		}
+
 	}
 
 }

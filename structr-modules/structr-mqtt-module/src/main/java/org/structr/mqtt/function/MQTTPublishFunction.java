@@ -18,12 +18,15 @@
  */
 package org.structr.mqtt.function;
 
+import org.slf4j.LoggerFactory;
 import org.structr.common.error.FrameworkException;
 import org.structr.mqtt.entity.MQTTClient;
 import org.structr.schema.action.ActionContext;
 import org.structr.schema.action.Function;
 
 public class MQTTPublishFunction extends Function<Object, Object> {
+
+	private static final org.slf4j.Logger logger = LoggerFactory.getLogger(MQTTPublishFunction.class.getName());
 
 	public static final String ERROR_MESSAGE_MQTTPUBLISH    = "Usage: ${mqtt_publish(client, topic, message)}. Example ${mqtt_publish(client, 'myTopic', 'myMessage')}";
 	public static final String ERROR_MESSAGE_MQTTPUBLISH_JS = "Usage: ${{Structr.mqtt_publish(client, topic, message)}}. Example ${{Structr.mqtt_publish(client, topic, message)}}";
@@ -43,7 +46,8 @@ public class MQTTPublishFunction extends Function<Object, Object> {
 				return "";
 			}
 
-			client.sendMessage(sources[1].toString(), sources[2].toString());
+			SendMessageThread worker = new SendMessageThread(client, sources[1].toString(), sources[2].toString());
+			new Thread(worker).start();
 
 		} else {
 
@@ -66,6 +70,32 @@ public class MQTTPublishFunction extends Function<Object, Object> {
 	@Override
 	public String getName() {
 		return "mqtt_publish";
+	}
+
+	private class SendMessageThread implements Runnable {
+		final MQTTClient client;
+		final String topic;
+		final String message;
+
+		public SendMessageThread(final MQTTClient client, final String topic, final String message){
+
+			this.client = client;
+			this.topic = topic;
+			this.message = message;
+		}
+
+		@Override
+		public void run() {
+
+			try {
+				
+				client.sendMessage(topic, message);
+			} catch (FrameworkException ex) {
+
+				logger.error("Could not execute mqtt_publish() function.");
+			}
+		}
+
 	}
 
 }

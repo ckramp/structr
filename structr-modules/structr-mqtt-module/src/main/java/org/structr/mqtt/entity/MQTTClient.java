@@ -99,32 +99,35 @@ public class MQTTClient extends AbstractNode implements MQTTInfo{
 	@Override
 	public boolean onModification(final SecurityContext securityContext, final ErrorBuffer errorBuffer, final ModificationQueue modificationQueue) throws FrameworkException {
 
-		MQTTClientConnection connection = MQTTContext.getClientForId(getUuid());
-		boolean enabled                 = getProperty(isEnabled);
-		if (!enabled) {
+		if(modificationQueue.isPropertyModified(isEnabled)){
 
-			if (connection != null && connection.isConnected()) {
+			MQTTClientConnection connection = MQTTContext.getClientForId(getUuid());
+			boolean enabled                 = getProperty(isEnabled);
+			if (!enabled) {
 
-				MQTTContext.disconnect(this);
-				setProperties(securityContext, new PropertyMap(isConnected, false));
-			}
+				if (connection != null && connection.isConnected()) {
 
-		} else {
-
-			if (connection == null || !connection.isConnected()) {
-
-				MQTTContext.connect(this);
-			}
-
-			connection = MQTTContext.getClientForId(getUuid());
-			if (connection != null) {
-
-				if (connection.isConnected()) {
-
-					setProperties(securityContext, new PropertyMap(isConnected, true));
-				} else {
-
+					MQTTContext.disconnect(this);
 					setProperties(securityContext, new PropertyMap(isConnected, false));
+				}
+
+			} else {
+
+				if (connection == null || !connection.isConnected()) {
+
+					MQTTContext.connect(this);
+				}
+
+				connection = MQTTContext.getClientForId(getUuid());
+				if (connection != null) {
+
+					if (connection.isConnected()) {
+
+						setProperties(securityContext, new PropertyMap(isConnected, true));
+					} else {
+
+						setProperties(securityContext, new PropertyMap(isConnected, false));
+					}
 				}
 			}
 		}

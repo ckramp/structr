@@ -43,7 +43,8 @@ public class MQTTUnsubscribeTopicFunction extends Function<Object, Object> {
 				return "";
 			}
 
-			client.unsubscribeTopic(sources[1].toString());
+			UnsubscribeTopicThread worker = new UnsubscribeTopicThread(client, sources[1].toString());
+			new Thread(worker).start();
 
 		} else {
 
@@ -66,6 +67,30 @@ public class MQTTUnsubscribeTopicFunction extends Function<Object, Object> {
 	@Override
 	public String getName() {
 		return "mqtt_unsubscribe";
+	}
+
+	private class UnsubscribeTopicThread implements Runnable {
+		final MQTTClient client;
+		final String topic;
+
+		public UnsubscribeTopicThread(final MQTTClient client, final String topic){
+
+			this.client = client;
+			this.topic = topic;
+		}
+
+		@Override
+		public void run() {
+
+			try {
+
+				client.unsubscribeTopic(topic);
+			} catch (FrameworkException ex) {
+
+				logger.error("Could not execute mqtt_subscribe() function.");
+			}
+		}
+
 	}
 
 }
