@@ -43,9 +43,7 @@ public class MQTTSubscribeTopicFunction extends Function<Object, Object> {
 				return "";
 			}
 
-			SubscribeTopicThread worker = new SubscribeTopicThread(client, sources[1].toString());
-			new Thread(worker).start();
-
+			client.subscribeTopic(sources[1].toString());
 		} else {
 
 			logParameterError(caller, sources, ctx.isJavaScriptContext());
@@ -68,29 +66,4 @@ public class MQTTSubscribeTopicFunction extends Function<Object, Object> {
 	public String getName() {
 		return "mqtt_subscribe";
 	}
-
-	private class SubscribeTopicThread implements Runnable {
-		final MQTTClient client;
-		final String topic;
-
-		public SubscribeTopicThread(final MQTTClient client, final String topic){
-
-			this.client = client;
-			this.topic = topic;
-		}
-
-		@Override
-		public void run() {
-
-			try {
-
-				client.subscribeTopic(topic);
-			} catch (FrameworkException ex) {
-
-				logger.error("Could not execute mqtt_subscribe() function.");
-			}
-		}
-
-	}
-
 }

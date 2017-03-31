@@ -46,8 +46,7 @@ public class MQTTPublishFunction extends Function<Object, Object> {
 				return "";
 			}
 
-			SendMessageThread worker = new SendMessageThread(client, sources[1].toString(), sources[2].toString());
-			new Thread(worker).start();
+			client.sendMessage(sources[1].toString(), sources[2].toString());
 
 		} else {
 
@@ -71,31 +70,5 @@ public class MQTTPublishFunction extends Function<Object, Object> {
 	public String getName() {
 		return "mqtt_publish";
 	}
-
-	private class SendMessageThread implements Runnable {
-		final MQTTClient client;
-		final String topic;
-		final String message;
-
-		public SendMessageThread(final MQTTClient client, final String topic, final String message){
-
-			this.client = client;
-			this.topic = topic;
-			this.message = message;
-		}
-
-		@Override
-		public void run() {
-
-			try {
-
-				client.sendMessage(topic, message);
-			} catch (FrameworkException ex) {
-
-				logger.error("Could not execute mqtt_publish() function.");
-			}
-		}
-
-	}
-
+	
 }

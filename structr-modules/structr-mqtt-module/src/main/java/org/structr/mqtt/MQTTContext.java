@@ -45,27 +45,7 @@ public abstract class MQTTContext {
 			@Override
 			public void initializationDone() {
 
-				final App app = StructrApp.getInstance();
-
-				try (final Tx tx = app.tx()) {
-
-					for (final MQTTClient client : app.nodeQuery(MQTTClient.class).getAsList()) {
-
-						client.setProperties(client.getSecurityContext(), new PropertyMap(MQTTClient.isConnected, false));
-
-						// enable clients on startup
-						if (client.getProperty(MQTTClient.isEnabled)) {
-
-							MQTTContext.connect(client);
-							MQTTContext.subscribeAllTopics(client);
-						}
-					}
-
-					tx.success();
-
-				} catch (Throwable t) {
-					logger.warn("Could not connect to MQTT broker.");
-				}
+				new Thread(new SubscriptionWorker()).start();
 			}
 		});
 	}
@@ -119,6 +99,41 @@ public abstract class MQTTContext {
 			if(!StringUtils.isEmpty(topic)){
 
 				con.subscribeTopic(topic);
+			}
+		}
+
+	}
+
+	private static class SubscriptionWorker implements Runnable {
+
+		@Override
+		public void run() {
+
+			// wait for service layer to be initialized
+			while (!Services.getInstance().isInitialized()) {
+				try { Thread.sleep(1000); } catch(InterruptedException iex) { }
+			}
+
+			final App app = StructrApp.getInstance();
+
+			try (final Tx tx = app.tx()) {
+
+				for (final MQTTClient client : app.nodeQuery(MQTTClient.class).getAsList()) {
+
+					client.setProperties(client.getSecurityContext(), new PropertyMap(MQTTClient.isConnected, false));
+
+					// enable clients on startup
+					if (client.getProperty(MQTTClient.isEnabled)) {
+
+						MQTTContext.connect(client);
+						MQTTContext.subscribeAllTopics(client);
+					}
+				}
+
+				tx.success();
+
+			} catch (Throwable t) {
+				logger.warn("Could not connect to MQTT broker.");
 			}
 		}
 

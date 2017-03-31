@@ -133,7 +133,8 @@ public class MQTTClientConnection implements MqttCallback {
 	@Override
 	public void messageArrived(String topic, MqttMessage msg) throws Exception {
 
-		info.messageCallback(topic, msg.toString());
+		Thread workerThread = new Thread(new CallbackWorker(info, topic, msg.toString()));
+		workerThread.start();
 	}
 
 	@Override
@@ -159,6 +160,24 @@ public class MQTTClientConnection implements MqttCallback {
 
 	@Override
 	public void deliveryComplete(IMqttDeliveryToken token) {
+	}
+
+	private class CallbackWorker implements Runnable {
+		private final MQTTInfo info;
+		private final String topic;
+		private final String message;
+
+		public CallbackWorker(MQTTInfo info, String topic, String message){
+			this.info = info;
+			this.topic = topic;
+			this.message = message;
+		}
+
+		@Override
+		public void run() {
+			info.messageCallback(topic, message);
+		}
+
 	}
 
 }

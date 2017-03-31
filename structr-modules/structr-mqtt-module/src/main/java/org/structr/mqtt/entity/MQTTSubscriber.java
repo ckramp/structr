@@ -112,6 +112,7 @@ public class MQTTSubscriber extends AbstractNode {
 			Map<String, Object> params = new HashMap<>();
 			params.put("topic", topic);
 			params.put("message", message);
+			
 			ActionContext ac = new ActionContext(securityContext, params);
 			Scripting.replaceVariables(ac, this, script);
 		}
