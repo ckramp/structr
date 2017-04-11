@@ -27,6 +27,7 @@ import org.structr.core.GraphObject;
 import org.structr.core.GraphObjectMap;
 import org.structr.core.StaticValue;
 import org.structr.core.Value;
+import org.structr.core.property.StringProperty;
 import org.structr.schema.action.ActionContext;
 
 public class ToGraphObjectFunction extends UiFunction {
@@ -70,16 +71,26 @@ public class ToGraphObjectFunction extends UiFunction {
 
 					for(Object o : list){
 
-						if(o instanceof Map){
+						if (o instanceof Map) {
 
 							GraphObjectMap newObj = new GraphObjectMap();
 
-							this.recursivelyConvertMapToGraphObjectMap(newObj, (Map)sources[0], outputDepth);
+							this.recursivelyConvertMapToGraphObjectMap(newObj, (Map)o, outputDepth);
 
 							res.add(newObj);
 
-						} else if(o instanceof GraphObjectMap) {
+						} else if (o instanceof GraphObjectMap) {
+
 							res.add((GraphObjectMap)o);
+
+						} else if (o instanceof String) {
+
+							final GraphObjectMap stringWrapperObject = new GraphObjectMap();
+
+							stringWrapperObject.put(new StringProperty("value"), o);
+
+							res.add(stringWrapperObject);
+
 						}
 
 					}
@@ -96,7 +107,6 @@ public class ToGraphObjectFunction extends UiFunction {
 					return map;
 
 				}
-
 
 			} catch (Throwable t) {
 
