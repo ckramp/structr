@@ -147,25 +147,12 @@ public abstract class Factory<S, T extends GraphObject> implements Adapter<S, T>
 	 * @return nodes
 	 * @throws org.structr.common.error.FrameworkException
 	 */
-	public List<T> bulkInstantiate(final Iterable<S> input) throws FrameworkException {
-
-		List<T> nodes = new LinkedList<>();
-
-		if ((input != null) && input.iterator().hasNext()) {
-
-			for (S node : input) {
-
-				T n = instantiate(node);
-				if (n != null) {
-
-					nodes.add(n);
-				}
-			}
-		}
-
-		return nodes;
+	/*
+	public QueryResult<T> bulkInstantiate(final QueryResult<S> input) throws FrameworkException {
+		return QueryUtils.map(this,input);
 	}
-
+	*/
+	
 	@Override
 	public T adapt(S s) {
 		return instantiate(s);

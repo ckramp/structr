@@ -66,8 +66,8 @@ public class DumpDatabaseCommand extends NodeServiceCommand implements Maintenan
 				// Don't include files
 				SyncCommand.exportToStream(
 					file.getOutputStream(),
-					nodeFactory.bulkInstantiate(app.getDatabaseService().getAllNodes()),
-					relFactory.bulkInstantiate(app.getDatabaseService().getAllRelationships()),
+					nodeFactory.instantiate(app.getDatabaseService().getAllNodes()),
+					relFactory.instantiate(app.getDatabaseService().getAllRelationships()),
 					null,
 					false
 				);

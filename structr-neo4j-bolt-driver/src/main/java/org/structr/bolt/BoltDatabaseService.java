@@ -48,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import org.structr.api.DatabaseService;
 import org.structr.api.NativeResult;
 import org.structr.api.NotInTransactionException;
+import org.structr.api.QueryResult;
 import org.structr.api.Transaction;
 import org.structr.api.config.Settings;
 import org.structr.api.graph.GraphProperties;
@@ -243,7 +244,7 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	}
 
 	@Override
-	public Iterable<Node> getAllNodes() {
+	public QueryResult<Node> getAllNodes() {
 
 		final SessionTransaction tx = getCurrentTransaction();
 		final NodeNodeMapper mapper = new NodeNodeMapper(this);
@@ -252,7 +253,7 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	}
 
 	@Override
-	public Iterable<Node> getNodesByLabel(final String type) {
+	public QueryResult<Node> getNodesByLabel(final String type) {
 
 		if (type == null) {
 			return getAllNodes();
@@ -265,7 +266,7 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	}
 
 	@Override
-	public Iterable<Node> getNodesByTypeProperty(final String type) {
+	public QueryResult<Node> getNodesByTypeProperty(final String type) {
 
 		if (type == null) {
 			return getAllNodes();
@@ -281,7 +282,7 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	}
 
 	@Override
-	public Iterable<Relationship> getAllRelationships() {
+	public QueryResult<Relationship> getAllRelationships() {
 
 		final RelationshipRelationshipMapper mapper = new RelationshipRelationshipMapper(this);
 		final SessionTransaction tx                 = getCurrentTransaction();
@@ -290,7 +291,7 @@ public class BoltDatabaseService implements DatabaseService, GraphProperties {
 	}
 
 	@Override
-	public Iterable<Relationship> getRelationshipsByType(final String type) {
+	public QueryResult<Relationship> getRelationshipsByType(final String type) {
 
 		if (type == null) {
 			return getAllRelationships();

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import org.structr.api.QueryResult;
 import org.structr.api.graph.Direction;
 import org.structr.api.graph.Label;
 import org.structr.api.graph.Node;
@@ -30,6 +31,7 @@ import org.structr.api.graph.Relationship;
 import org.structr.api.graph.RelationshipType;
 import org.structr.api.util.FixedSizeCache;
 import org.structr.api.util.Iterables;
+import org.structr.api.util.QueryUtils;
 import org.structr.bolt.BoltDatabaseService;
 import org.structr.bolt.SessionTransaction;
 import org.structr.bolt.mapper.RelationshipRelationshipMapper;
@@ -129,7 +131,7 @@ public class NodeWrapper extends EntityWrapper<org.neo4j.driver.v1.types.Node> i
 	}
 
 	@Override
-	public Iterable<Label> getLabels() {
+	public QueryResult<Label> getLabels() {
 
 		assertNotStale();
 
@@ -144,11 +146,11 @@ public class NodeWrapper extends EntityWrapper<org.neo4j.driver.v1.types.Node> i
 			result.add(db.forName(Label.class, label));
 		}
 
-		return result;
+		return QueryUtils.fromList(result);
 	}
 
 	@Override
-	public Iterable<Relationship> getRelationships() {
+	public QueryResult<Relationship> getRelationships() {
 
 		assertNotStale();
 
@@ -168,11 +170,11 @@ public class NodeWrapper extends EntityWrapper<org.neo4j.driver.v1.types.Node> i
 			setList(null, null, list);
 		}
 
-		return list;
+		return QueryUtils.fromList(list);
 	}
 
 	@Override
-	public Iterable<Relationship> getRelationships(final Direction direction) {
+	public QueryResult<Relationship> getRelationships(final Direction direction) {
 
 		assertNotStale();
 
@@ -204,11 +206,11 @@ public class NodeWrapper extends EntityWrapper<org.neo4j.driver.v1.types.Node> i
 
 		}
 
-		return list;
+		return QueryUtils.fromList(list);
 	}
 
 	@Override
-	public Iterable<Relationship> getRelationships(final Direction direction, final RelationshipType relationshipType) {
+	public QueryResult<Relationship> getRelationships(final Direction direction, final RelationshipType relationshipType) {
 
 		assertNotStale();
 
@@ -240,7 +242,7 @@ public class NodeWrapper extends EntityWrapper<org.neo4j.driver.v1.types.Node> i
 			setList(direction, relationshipType, list);
 		}
 
-		return list;
+		return QueryUtils.fromList(list);
 	}
 
 	@Override

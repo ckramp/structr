@@ -18,10 +18,7 @@
  */
 package org.structr.core.function;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.Iterator;
 import org.structr.common.error.FrameworkException;
 import static org.structr.core.function.Functions.NULL_STRING;
 import org.structr.schema.action.ActionContext;
@@ -42,31 +39,32 @@ public class SizeFunction extends Function<Object, Object> {
 	@Override
 	public Object apply(final ActionContext ctx, final Object caller, final Object[] sources) throws FrameworkException {
 
-		final List list = new ArrayList();
+		int count = 0;
 		for (final Object source : sources) {
 
 			if (source != null) {
 
-				if (source instanceof Collection) {
+				if (source instanceof Iterable) {
 
-					// filter null objects
-					for (Object obj : (Collection)source) {
-						if (obj != null && !NULL_STRING.equals(obj)) {
+					Iterator it = ((Iterable)source).iterator();
+					while(it.hasNext()) {
 
-							list.add(obj);
+						Object obj = it.next();
+						if(obj != null && !NULL_STRING.equals(obj)){
+							
+							count++;
 						}
 					}
-
 				} else if (source.getClass().isArray()) {
 
-					list.addAll(Arrays.asList((Object[])source));
+					count += ((Object[])source).length;
 
-				} else if (source != null && !NULL_STRING.equals(source)) {
+ 				} else if (!NULL_STRING.equals(source)) {
 
-					list.add(source);
+					count += 1;
 				}
 
-				return list.size();
+				return count;
 			}
 		}
 

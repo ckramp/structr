@@ -210,8 +210,12 @@ public class SyncCommand extends NodeServiceCommand implements MaintenanceComman
 
 			} else {
 
-				nodes.addAll(nodeFactory.bulkInstantiate(graphDb.getAllNodes()));
-				rels.addAll(relFactory.bulkInstantiate(graphDb.getAllRelationships()));
+				nodeFactory.instantiate(graphDb.getAllNodes()).iterator().forEachRemaining(
+					(Object o)->{nodes.add((AbstractNode)o);}
+				);
+				relFactory.instantiate(graphDb.getAllRelationships()).iterator().forEachRemaining(
+					(Object o)->{rels.add((AbstractRelationship)o);}
+				);
 			}
 
 			try (final FileOutputStream fos = new FileOutputStream(fileName)) {

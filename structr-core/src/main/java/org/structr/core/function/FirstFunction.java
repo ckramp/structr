@@ -18,7 +18,7 @@
  */
 package org.structr.core.function;
 
-import java.util.List;
+import java.util.Iterator;
 import org.structr.common.error.FrameworkException;
 import org.structr.schema.action.ActionContext;
 import org.structr.schema.action.Function;
@@ -40,12 +40,15 @@ public class FirstFunction extends Function<Object, Object> {
 
 		try {
 			if (!arrayHasLengthAndAllElementsNotNull(sources, 1)) {
-				
+
 				return null;
 			}
 
-			if (sources[0] instanceof List && !((List)sources[0]).isEmpty()) {
-				return ((List)sources[0]).get(0);
+			if (sources[0] instanceof Iterable) {
+				Iterator it = ((Iterable)sources[0]).iterator();
+				if(it.hasNext()) {
+					return it.next();
+				}
 			}
 
 			if (sources[0].getClass().isArray()) {

@@ -56,12 +56,12 @@ public class OutgoingFunction extends Function<Object, Object> {
 					if (relType != null && relType instanceof String) {
 
 						final String relTypeName = (String)relType;
-						return factory.bulkInstantiate(node.getNode().getRelationships(Direction.OUTGOING, RelationshipType.forName(relTypeName)));
+						return factory.instantiate(node.getNode().getRelationships(Direction.OUTGOING, RelationshipType.forName(relTypeName)));
 					}
 
 				} else {
 
-					return factory.bulkInstantiate(node.getNode().getRelationships(Direction.OUTGOING));
+					return factory.instantiate(node.getNode().getRelationships(Direction.OUTGOING));
 				}
 
 			} else {

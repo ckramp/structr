@@ -18,9 +18,9 @@
  */
 package org.structr.core.graph;
 
-import java.util.Collections;
-import java.util.List;
 import org.structr.api.DatabaseService;
+import org.structr.api.QueryResult;
+import org.structr.api.util.QueryUtils;
 import org.structr.common.error.FrameworkException;
 import org.structr.core.entity.AbstractNode;
 
@@ -29,15 +29,15 @@ import org.structr.core.entity.AbstractNode;
  */
 public class GetAllNodes extends NodeServiceCommand {
 
-	public List<AbstractNode> execute() throws FrameworkException {
+	public QueryResult<AbstractNode> execute() throws FrameworkException {
 
 		DatabaseService graphDb = (DatabaseService)arguments.get("graphDb");
 		NodeFactory nodeFactory = new NodeFactory(securityContext);
 
 		if(graphDb != null) {
-			return nodeFactory.bulkInstantiate(graphDb.getAllNodes());
+			return nodeFactory.instantiate(graphDb.getAllNodes());
 		}
 
-		return Collections.emptyList();
+		return QueryUtils.emptyResult();
 	}
 }

@@ -18,7 +18,7 @@
  */
 package org.structr.core.function;
 
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import org.structr.common.SecurityContext;
@@ -48,13 +48,13 @@ public class GetFunction extends Function<Object, Object> {
 	public Object apply(final ActionContext ctx, final Object caller, final Object[] sources) throws FrameworkException {
 
 		final SecurityContext securityContext = ctx.getSecurityContext();
-		
+
 		try {
 			if (!arrayHasLengthAndAllElementsNotNull(sources, 2)) {
-				
+
 				return "";
 			}
-		
+
 			final String keyName = sources[1].toString();
 			GraphObject dataObject = null;
 
@@ -64,19 +64,19 @@ public class GetFunction extends Function<Object, Object> {
 			}
 
 			// handle first element of a list of graph objects
-			if (sources[0] instanceof List) {
+			if (sources[0] instanceof Iterable) {
 
-				final List list = (List)sources[0];
-				final int size = list.size();
+				final Iterable iterable = (Iterable)sources[0];
+				Iterator it = iterable.iterator();
 
-				if (size == 1) {
+				if (it.hasNext()) {
 
-					final Object value = list.get(0);
+					final Object value = it.next();
 					if (value != null) {
 
 						if (value instanceof GraphObject) {
 
-							dataObject = (GraphObject)list.get(0);
+							dataObject = (GraphObject)value;
 
 						} else {
 
@@ -127,7 +127,7 @@ public class GetFunction extends Function<Object, Object> {
 			}
 
 		} catch (final IllegalArgumentException e) {
-			
+
 			logParameterError(caller, sources, ctx.isJavaScriptContext());
 
 			return usage(ctx.isJavaScriptContext());

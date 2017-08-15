@@ -19,6 +19,7 @@
 package org.structr.api.graph;
 
 import java.util.Map;
+import org.structr.api.QueryResult;
 
 /**
  *
@@ -31,9 +32,9 @@ public interface Node extends PropertyContainer {
 	void addLabel(final Label label);
 	void removeLabel(final Label label);
 
-	Iterable<Label> getLabels();
+	QueryResult<Label> getLabels();
 
-	Iterable<Relationship> getRelationships();
-	Iterable<Relationship> getRelationships(final Direction direction);
-	Iterable<Relationship> getRelationships(final Direction direction, final RelationshipType relationshipType);
+	QueryResult<Relationship> getRelationships();
+	QueryResult<Relationship> getRelationships(final Direction direction);
+	QueryResult<Relationship> getRelationships(final Direction direction, final RelationshipType relationshipType);
 }

@@ -66,7 +66,7 @@ public class BulkMigrateRelationships extends NodeServiceCommand implements Main
 
 		if (graphDb != null) {
 
-			final Iterator<AbstractRelationship> relIterator = Iterables.map(relFactory, relFactory.bulkInstantiate(graphDb.getAllRelationships())).iterator();
+			final Iterator<AbstractRelationship> relIterator = Iterables.map(relFactory, relFactory.instantiate(graphDb.getAllRelationships())).iterator();
 
 			final long counter = bulkGraphOperation(securityContext, relIterator, 1000, "MigrateRelationships", new BulkGraphOperation<AbstractRelationship>() {
 
