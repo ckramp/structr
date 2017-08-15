@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -841,6 +842,15 @@ public class JsonRestServlet extends HttpServlet implements HttpServiceServlet {
 
 				result.setMetaData("page", page);
 				result.setMetaData("pageSize", pageSize);
+
+				// Get result count TODO: Move to a more suitable location
+				int count = 0;
+				Iterator it = result.iterator();
+				while(it.hasNext()) {
+					count++;
+					it.next();
+				}
+				result.setMetaData("size", count);
 
 				// timing..
 				double queryTimeEnd = System.nanoTime();

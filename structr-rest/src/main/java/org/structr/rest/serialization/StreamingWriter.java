@@ -133,6 +133,7 @@ public abstract class StreamingWriter {
 			writer.setIndent("	");
 		}
 
+		final Integer size             = (Integer)result.getMetaData("size");
 		final Integer page             = (Integer)result.getMetaData("page");
 		final Integer pageSize         = (Integer)result.getMetaData("pageSize");
 		final String queryTime         = (String)result.getMetaData("queryTime");
@@ -159,6 +160,11 @@ public abstract class StreamingWriter {
 		if (queryTime != null) {
 			writer.name("query_time").value(queryTime);
 		}
+
+		if(size != null) {
+			writer.name("result_count").value(size);
+		}
+
 
 		final Iterator iterator = result.iterator();
 		if (!iterator.hasNext()) {

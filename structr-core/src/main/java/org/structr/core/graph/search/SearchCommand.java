@@ -216,7 +216,6 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 			// sorted result set
 			final Set<T> intermediateResultSet = new LinkedHashSet<>(QueryUtils.toList(intermediateResult));
 			final List<T> finalResult          = new ArrayList<>();
-			int resultCount                    = 0;
 
 			// We need to find out whether there was a source for any of the possible sets that we want to merge.
 			// If there was only a single source, the final result is the result of that source. If there are
@@ -253,7 +252,6 @@ public abstract class SearchCommand<S extends PropertyContainer, T extends Graph
 				if (addToResult) {
 
 					finalResult.add(obj);
-					resultCount++;
 				}
 			}
 

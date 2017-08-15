@@ -210,11 +210,11 @@ public class SyncCommand extends NodeServiceCommand implements MaintenanceComman
 
 			} else {
 
-				nodeFactory.instantiate(graphDb.getAllNodes()).iterator().forEachRemaining(
-					(Object o)->{nodes.add((AbstractNode)o);}
+				graphDb.getAllNodes().iterator().forEachRemaining(
+					(Object o)->{nodes.add((AbstractNode)nodeFactory.instantiate(o));}
 				);
-				relFactory.instantiate(graphDb.getAllRelationships()).iterator().forEachRemaining(
-					(Object o)->{rels.add((AbstractRelationship)o);}
+				graphDb.getAllRelationships().iterator().forEachRemaining(
+					(Object o)->{rels.add((AbstractRelationship)relFactory.instantiate(o));}
 				);
 			}
 
