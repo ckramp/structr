@@ -2,6 +2,7 @@
 .project
 .classpath
 target
+structr-modules/structr-api-builder-module/db*
 structr-ui/data
 structr-ui/db*
 structr-ui/files*
