@@ -34,6 +34,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.structr.api.config.Settings;
+import org.structr.api.search.Occurrence;
 import org.structr.common.error.FrameworkException;
 import org.structr.core.app.StructrApp;
 import org.structr.core.entity.Principal;
@@ -222,9 +223,14 @@ public class JWTHelper {
         final String instanceName = Settings.InstanceName.getValue();
         Principal user = null;
 
+        // Secret/Keypair tokens
         String instance = claims.getOrDefault("instance", new NullClaim()).asString();
         String uuid = claims.getOrDefault("uuid", new NullClaim()).asString();
         String eMail = claims.getOrDefault("eMail", new NullClaim()).asString();
+
+        // OAuth Tokens
+        String client_id = claims.getOrDefault("client_id", new NullClaim()).asString();
+        String azp = claims.getOrDefault("azp", new NullClaim()).asString();
 
         // if the instance is the same that issued the token, we can lookup the user with uuid claim
         if (StringUtils.equals(instance, instanceName)) {
@@ -234,6 +240,19 @@ public class JWTHelper {
         } else if (eMail != null && StringUtils.equals(eMail, "")) {
 
             user  = StructrApp.getInstance().nodeQuery(Principal.class).and().or(eMailKey, eMail).disableSorting().getFirst();
+
+        }
+
+        // Try to lookup client via client_id
+        PropertyKey client_ids_key = StructrApp.getConfiguration().getPropertyKeyForDatabaseName(Principal.class, "oauth_client_ids");
+
+        if (client_ids_key != null && client_id != null) {
+
+            user = (Principal) StructrApp.getInstance().nodeQuery(Principal.class).and(client_ids_key, new String[]{client_id}).disableSorting().getFirst();
+
+        } else if (client_ids_key != null && azp != null) {
+
+            user = (Principal) StructrApp.getInstance().nodeQuery(Principal.class).and(client_ids_key, new String[]{azp}).disableSorting().getFirst();
 
         }
 
